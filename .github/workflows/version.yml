@@ -1,0 +1,54 @@
+name: Version
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    name: version bump
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Check the version change, if any
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+
+          # Rejects a version that moved sideways or backwards (which would break
+          # the release workflow's tag-matching guard); does not force a bump.
+          read_version() {
+            sed -n 's/^project(HdrScreenshotSyncer VERSION \([0-9.]*\).*/\1/p' "$1"
+          }
+
+          head_version="$(read_version CMakeLists.txt)"
+          git show "$BASE_SHA:CMakeLists.txt" > /tmp/base-CMakeLists.txt
+          base_version="$(read_version /tmp/base-CMakeLists.txt)"
+
+          echo "base: ${base_version:-<none>}"
+          echo "head: ${head_version:-<none>}"
+
+          if [ -z "$head_version" ]; then
+            echo "::error file=CMakeLists.txt::Could not read project(HdrScreenshotSyncer VERSION ...)"
+            exit 1
+          fi
+
+          if [ "$head_version" = "$base_version" ]; then
+            echo "No version change; nothing to release from this PR."
+            exit 0
+          fi
+
+          newest="$(printf '%s\n%s\n' "$base_version" "$head_version" | sort -V | tail -1)"
+          if [ "$newest" != "$head_version" ]; then
+            echo "::error file=CMakeLists.txt::$head_version is not newer than $base_version"
+            exit 1
+          fi
+
+          echo "$base_version -> $head_version"

@@ -1,5 +1,12 @@
 # HdrScreenshotSyncer
 
+[![Windows build](https://github.com/mangokingTW/HdrScreenshotSyncer/actions/workflows/windows-build.yml/badge.svg)](https://github.com/mangokingTW/HdrScreenshotSyncer/actions/workflows/windows-build.yml)
+[![CodeQL](https://github.com/mangokingTW/HdrScreenshotSyncer/actions/workflows/codeql.yml/badge.svg)](https://github.com/mangokingTW/HdrScreenshotSyncer/actions/workflows/codeql.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mangokingTW/HdrScreenshotSyncer/badge)](https://scorecard.dev/viewer/?uri=github.com/mangokingTW/HdrScreenshotSyncer)
+[![Latest release](https://img.shields.io/github/v/release/mangokingTW/HdrScreenshotSyncer?sort=semver)](https://github.com/mangokingTW/HdrScreenshotSyncer/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/mangokingTW/HdrScreenshotSyncer/total)](https://github.com/mangokingTW/HdrScreenshotSyncer/releases)
+[![License: MIT](https://img.shields.io/github/license/mangokingTW/HdrScreenshotSyncer)](LICENSE)
+
 A small Windows tray tool that keeps Snipping Tool's **HDR screenshot color
 corrector** (`IsHDRToneMappingEnabled`) in sync with whether the display is
 currently in HDR — so native screenshots come out right without toggling the
