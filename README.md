@@ -1,4 +1,4 @@
-# hdr-snip-sync (working name)
+# HdrScreenshotSyncer
 
 A small Windows tray tool that keeps Snipping Tool's **HDR screenshot color
 corrector** (`IsHDRToneMappingEnabled`) in sync with whether the display is
