@@ -9,13 +9,24 @@ current state; this follows it automatically.
 Separate from ImeModePersistence on purpose (unrelated concern, and that app is
 already published / in Store review).
 
-## Status: proving feasibility first
+## Status
 
-The whole idea depends on one unknown: **does Snipping Tool honor an external
-write to its `IsHDRToneMappingEnabled` setting?** Until that's confirmed, nothing
-else is worth building.
+Feasibility **confirmed** — Snipping Tool honors an external write to
+`IsHDRToneMappingEnabled`. A minimal tray app is now implemented: it detects the
+display's HDR state and writes the setting to match, on a timer and on
+`WM_DISPLAYCHANGE`. Still to come: a custom icon, autostart, and packaging
+(installer / Scoop / winget), mirroring the sibling project.
 
-What we know (from Process Monitor):
+## Build
+
+```powershell
+cmake -S . -B build -A x64
+cmake --build build --config Release
+```
+
+Produces `build/Release/HdrScreenshotSyncer.exe`.
+
+## How the setting is stored (from Process Monitor):
 - It's a registry value in Snipping Tool's `settings.dat`
   (`%LocalAppData%\Packages\Microsoft.ScreenSketch_8wekyb3d8bbwe\Settings\settings.dat`),
   under `LocalState\IsHDRToneMappingEnabled`.
