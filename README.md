@@ -16,12 +16,27 @@ current state; this follows it automatically.
 ## How it works
 
 The app sits in the system tray and, on a light timer and on every
-`WM_DISPLAYCHANGE`, checks the display's HDR state via the Windows CCD APIs
-(`DisplayConfigGetDeviceInfo` + `DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO`). When it
-differs from Snipping Tool's stored setting, it writes `IsHDRToneMappingEnabled`
-to match — true in HDR, false in SDR — so the corrector always fits the current
-display. The write goes through `RegLoadAppKey` (no admin) and retries next cycle
-if Snipping Tool is holding the hive.
+`WM_DISPLAYCHANGE`, decides whether the corrector should be on, then writes
+`IsHDRToneMappingEnabled` to match when it differs. The write goes through
+`RegLoadAppKey` (no admin) and retries next cycle if Snipping Tool is holding the
+hive.
+
+Deciding "is this HDR" is the interesting part. Windows exposes **no** per-window
+or per-app HDR API, and on a display left in HDR permanently the display-level
+flag (`DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO`, `advancedColorEnabled`) never
+changes — so it can't tell an SDR app from an HDR one. The only externally
+observable signal is the pixels themselves: with HDR on, Windows composites the
+desktop into an scRGB FP16 framebuffer where SDR content tops out at SDR white
+and HDR highlights go brighter. So the app captures the foreground window's
+region via Desktop Duplication (`IDXGIOutput5::DuplicateOutput1` at
+`R16G16B16A16_FLOAT`) and checks whether enough pixels exceed SDR white
+(read from `DISPLAYCONFIG_SDR_WHITE_LEVEL`). If the display isn't in HDR at all,
+the corrector is simply off.
+
+This is content-based, not app-based: it detects HDR pixels in the foreground
+window, so an SDR window showing an embedded HDR video reads as HDR. When a frame
+can't be captured (a fullscreen-exclusive game, protected content), it keeps the
+last decision rather than guess.
 
 The tray menu has Enabled, Sync now, Start at logon, and Exit. No elevation, no
 network, no data collection.

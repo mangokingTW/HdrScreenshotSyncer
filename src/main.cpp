@@ -6,6 +6,7 @@
 
 #include "autostart.h"
 #include "hdr.h"
+#include "hdr_content.h"
 #include "resource.h"
 #include "snip_setting.h"
 
@@ -41,14 +42,27 @@ void set_tray_icon(bool add) {
     }
 }
 
-// Match Snipping Tool's HDR screenshot corrector to whether a display is in HDR.
-// Only writes when it differs, and a write may fail if Snipping Tool holds the
-// hive -- the next cycle retries.
+// Match Snipping Tool's HDR screenshot corrector to whether the content being
+// looked at is actually HDR. If no display is in HDR at all, the corrector isn't
+// needed (SDR capture). Otherwise decide by scanning the foreground window's
+// pixels -- the display-level flag is useless when HDR is left on permanently,
+// since it never changes while apps switch between SDR and HDR content.
+//
+// Only writes when the setting differs, and a write may fail if Snipping Tool
+// holds the hive -- the next cycle retries. When the content can't be read this
+// cycle, keep the current setting rather than flip it on missing data.
 void sync() {
     if (!g_enabled) {
         return;
     }
-    const bool want = hdr::any_display_on();
+    bool want = false;
+    if (hdr::any_display_on()) {
+        const std::optional<bool> content = hdr::foreground_has_hdr_content();
+        if (!content.has_value()) {
+            return;
+        }
+        want = content.value();
+    }
     const std::optional<bool> current = snip::read();
     if (!current.has_value() || current.value() != want) {
         snip::write(want);

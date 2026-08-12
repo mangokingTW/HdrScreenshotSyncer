@@ -21,6 +21,8 @@ add_executable(HdrScreenshotSyncer WIN32
     src/main.cpp
     src/hdr.cpp
     src/hdr.h
+    src/hdr_content.cpp
+    src/hdr_content.h
     src/snip_setting.cpp
     src/snip_setting.h
     src/autostart.cpp
@@ -29,7 +31,7 @@ add_executable(HdrScreenshotSyncer WIN32
     "${CMAKE_CURRENT_BINARY_DIR}/resources.rc"
 )
 
-target_link_libraries(HdrScreenshotSyncer PRIVATE user32 advapi32 shell32)
+target_link_libraries(HdrScreenshotSyncer PRIVATE user32 advapi32 shell32 d3d11 dxgi)
 
 target_compile_definitions(HdrScreenshotSyncer PRIVATE UNICODE _UNICODE)
 
