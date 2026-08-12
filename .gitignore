@@ -1,0 +1,15 @@
+# Build output
+/build*/
+/dist/
+/out/
+
+# Packaging artifacts
+*.msix
+*.appx
+*.nupkg
+*.pfx
+
+# Editor / OS
+*.user
+.vs/
+.DS_Store
