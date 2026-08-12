@@ -4,6 +4,7 @@
 
 #include <optional>
 
+#include "autostart.h"
 #include "hdr.h"
 #include "snip_setting.h"
 
@@ -13,7 +14,8 @@ constexpr UINT WMAPP_TRAY = WM_APP + 1;
 constexpr UINT_PTR TIMER_SYNC = 1;
 constexpr UINT ID_ENABLED = 1001;
 constexpr UINT ID_SYNC_NOW = 1002;
-constexpr UINT ID_EXIT = 1003;
+constexpr UINT ID_AUTOSTART = 1003;
+constexpr UINT ID_EXIT = 1004;
 constexpr UINT kSyncIntervalMs = 3000;
 constexpr wchar_t kClassName[] = L"HdrScreenshotSyncerWindow";
 constexpr wchar_t kSingleInstanceMutex[] = L"Local\\HdrScreenshotSyncer.SingleInstance";
@@ -71,6 +73,8 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 AppendMenuW(menu, MF_STRING | (g_enabled ? MF_CHECKED : MF_UNCHECKED),
                             ID_ENABLED, L"Enabled");
                 AppendMenuW(menu, MF_STRING, ID_SYNC_NOW, L"Sync now");
+                AppendMenuW(menu, MF_STRING | (autostart::enabled() ? MF_CHECKED : MF_UNCHECKED),
+                            ID_AUTOSTART, L"Start at logon");
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
                 AppendMenuW(menu, MF_STRING, ID_EXIT, L"Exit");
                 POINT pt{};
@@ -92,6 +96,9 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             return 0;
         case ID_SYNC_NOW:
             sync();
+            return 0;
+        case ID_AUTOSTART:
+            autostart::set_enabled(!autostart::enabled());
             return 0;
         case ID_EXIT:
             DestroyWindow(hwnd);

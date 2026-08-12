@@ -16,6 +16,8 @@ add_executable(HdrScreenshotSyncer WIN32
     src/hdr.h
     src/snip_setting.cpp
     src/snip_setting.h
+    src/autostart.cpp
+    src/autostart.h
 )
 
 target_link_libraries(HdrScreenshotSyncer PRIVATE user32 advapi32 shell32)

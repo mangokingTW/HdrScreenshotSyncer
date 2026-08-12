@@ -14,8 +14,9 @@ already published / in Store review).
 Feasibility **confirmed** — Snipping Tool honors an external write to
 `IsHDRToneMappingEnabled`. A minimal tray app is now implemented: it detects the
 display's HDR state and writes the setting to match, on a timer and on
-`WM_DISPLAYCHANGE`. Still to come: a custom icon, autostart, and packaging
-(installer / Scoop / winget), mirroring the sibling project.
+`WM_DISPLAYCHANGE`, with a tray menu (Enabled / Sync now / Start at logon /
+Exit). Still to come: a custom icon and packaging (installer / Scoop / winget),
+mirroring the sibling project.
 
 ## Build
 
