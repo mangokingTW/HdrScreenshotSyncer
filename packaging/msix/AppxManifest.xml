@@ -2,12 +2,7 @@
 <!--
   MSIX manifest for the Microsoft Store build.
 
-  Identity Name / Publisher / PublisherDisplayName are PLACEHOLDERS. After
-  reserving the app name in Partner Center, copy the values from
-  Product > Product identity:
-    Name                 -> Package/Identity/@Name
-    Publisher (CN=...)   -> Package/Identity/@Publisher
-    PublisherDisplayName -> Package/Properties/PublisherDisplayName
+  Identity matches the Partner Center reservation (Store ID 9NS238QVJ9CS).
   Version's fourth field must stay 0 for Store submissions.
 
   Full-trust packaged desktop app (rescap:runFullTrust). Unlike the sibling IME
@@ -23,13 +18,13 @@
   IgnorableNamespaces="uap uap5 rescap">
 
   <Identity
-    Name="PLACEHOLDER.HdrScreenshotSyncer"
-    Publisher="CN=PLACEHOLDER-REPLACE-WITH-PARTNER-CENTER-VALUE"
+    Name="MangoYen.HDRScreenshotSyncer"
+    Publisher="CN=B64E145E-DB3F-473D-9BA6-BDF6CF2E8081"
     Version="0.1.0.0" />
 
   <Properties>
     <DisplayName>HdrScreenshotSyncer</DisplayName>
-    <PublisherDisplayName>mangokingTW</PublisherDisplayName>
+    <PublisherDisplayName>Mango Yen</PublisherDisplayName>
     <Logo>assets\StoreLogo.png</Logo>
   </Properties>
 
