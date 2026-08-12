@@ -13,17 +13,18 @@ currently in HDR — so native screenshots come out right without toggling the
 setting by hand. Windows switches HDR on and off per app, so you can't tell the
 current state; this follows it automatically.
 
-Separate from ImeModePersistence on purpose (unrelated concern, and that app is
-already published / in Store review).
+## How it works
 
-## Status
+The app sits in the system tray and, on a light timer and on every
+`WM_DISPLAYCHANGE`, checks the display's HDR state via the Windows CCD APIs
+(`DisplayConfigGetDeviceInfo` + `DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO`). When it
+differs from Snipping Tool's stored setting, it writes `IsHDRToneMappingEnabled`
+to match — true in HDR, false in SDR — so the corrector always fits the current
+display. The write goes through `RegLoadAppKey` (no admin) and retries next cycle
+if Snipping Tool is holding the hive.
 
-Feasibility **confirmed** — Snipping Tool honors an external write to
-`IsHDRToneMappingEnabled`. A minimal tray app is now implemented: it detects the
-display's HDR state and writes the setting to match, on a timer and on
-`WM_DISPLAYCHANGE`, with a tray menu (Enabled / Sync now / Start at logon /
-Exit). Still to come: a custom icon and packaging (installer / Scoop / winget),
-mirroring the sibling project.
+The tray menu has Enabled, Sync now, Start at logon, and Exit. No elevation, no
+network, no data collection.
 
 ## Install
 
@@ -32,10 +33,12 @@ mirroring the sibling project.
 | **Scoop** | `scoop bucket add mango https://github.com/mangokingTW/scoop-bucket`<br>`scoop install mango/HdrScreenshotSyncer` |
 | **winget** | `winget install mangokingTW.HdrScreenshotSyncer` |
 | **Chocolatey** | `choco install hdrscreenshotsyncer` |
+| **Microsoft Store** | search for *HdrScreenshotSyncer* |
 
 Or download the installer / portable zip from
 [Releases](https://github.com/mangokingTW/HdrScreenshotSyncer/releases). Scoop is
-available now; winget and Chocolatey are pending community moderation.
+available now; winget, Chocolatey, and the Microsoft Store listing are pending
+review.
 
 ## Build
 
@@ -46,33 +49,19 @@ cmake --build build --config Release
 
 Produces `build/Release/HdrScreenshotSyncer.exe`.
 
-## How the setting is stored (from Process Monitor):
+## How the setting is stored
+
+Reverse-engineered from Process Monitor:
+
 - It's a registry value in Snipping Tool's `settings.dat`
   (`%LocalAppData%\Packages\Microsoft.ScreenSketch_8wekyb3d8bbwe\Settings\settings.dat`),
   under `LocalState\IsHDRToneMappingEnabled`.
 - Registry type `100000011` (`0x5F5E10B`) = UWP LocalSettings Boolean.
 - Data is 9 bytes: 1 value byte (`00`/`01`) + an 8-byte FILETIME timestamp.
 - The live path is a dynamic mount, so it's written by loading `settings.dat`
-  with `RegLoadAppKey` (no admin) — see `tools/toggle-hdr-tonemap.ps1`.
+  with `RegLoadAppKey` (no admin). `tools/toggle-hdr-tonemap.ps1` is the original
+  proof-of-concept that toggles it from the command line.
 
-### The test
+## Privacy
 
-Close Snipping Tool (end any background `SnippingTool.exe`), then:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools\toggle-hdr-tonemap.ps1 on
-```
-
-Open Snipping Tool > Settings and check whether the corrector reflects it, and
-whether a screenshot of HDR content is corrected. If yes → the tray tool is
-viable. If no → the setting is cached in-process and this approach won't work.
-
-## Planned design (only if the test passes)
-
-- Detect the display's HDR state via the CCD APIs
-  (`DisplayConfigGetDeviceInfo` + `DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO`),
-  re-checking on `WM_DISPLAYCHANGE` and a light poll.
-- On change, write `IsHDRToneMappingEnabled` to match (true in HDR, false in SDR)
-  via `RegLoadAppKey`, when Snipping Tool isn't holding the hive.
-- Tray toggle + optional autostart; same MIT license, CI and packaging approach
-  as ImeModePersistence.
+No data collection, no network connections — see [PRIVACY.md](PRIVACY.md).
