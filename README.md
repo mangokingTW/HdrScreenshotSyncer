@@ -25,6 +25,18 @@ display's HDR state and writes the setting to match, on a timer and on
 Exit). Still to come: a custom icon and packaging (installer / Scoop / winget),
 mirroring the sibling project.
 
+## Install
+
+| Tool | Command |
+|---|---|
+| **Scoop** | `scoop bucket add mango https://github.com/mangokingTW/scoop-bucket`<br>`scoop install mango/HdrScreenshotSyncer` |
+| **winget** | `winget install mangokingTW.HdrScreenshotSyncer` |
+| **Chocolatey** | `choco install hdrscreenshotsyncer` |
+
+Or download the installer / portable zip from
+[Releases](https://github.com/mangokingTW/HdrScreenshotSyncer/releases). Scoop is
+available now; winget and Chocolatey are pending community moderation.
+
 ## Build
 
 ```powershell
