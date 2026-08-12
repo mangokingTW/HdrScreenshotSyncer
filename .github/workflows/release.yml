@@ -31,7 +31,9 @@ jobs:
           if ($full -notmatch '^\d+\.\d+\.\d+(-(alpha|beta|rc)\.\d+)?$') {
             throw "Tag '$env:TAG' is not MAJOR.MINOR.PATCH, optionally -beta.N / -alpha.N / -rc.N"
           }
+          $version = $full -replace '-.*$', ''   # numeric part, for VersionInfoVersion
           $prerelease = if ($full -match '-') { 'true' } else { 'false' }
+          "VERSION=$version"       | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
           "FILEVER=$full"          | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
           "PRERELEASE=$prerelease" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
@@ -47,6 +49,13 @@ jobs:
           cmake --build build-x86 --config Release
           if ($LASTEXITCODE) { throw "build x86 failed" }
 
+      - name: Build installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          iscc "/DAppVersion=$env:VERSION" "/DAppVersionFull=$env:FILEVER" installer\HdrScreenshotSyncer.iss
+          if ($LASTEXITCODE) { throw "installer failed to compile" }
+
       - name: Package portable archives
         shell: pwsh
         run: |
@@ -61,7 +70,7 @@ jobs:
       - name: Checksums
         shell: pwsh
         run: |
-          $lines = Get-FileHash dist/*.zip -Algorithm SHA256 |
+          $lines = Get-FileHash dist/*.zip, dist/*.exe -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" }
           $path = Join-Path $PWD 'dist/SHA256SUMS.txt'
           [System.IO.File]::WriteAllText($path, ($lines -join "`n") + "`n")
@@ -72,6 +81,7 @@ jobs:
         with:
           subject-path: |
             dist/*.zip
+            dist/*.exe
             dist/SHA256SUMS.txt
 
       - name: Attach provenance to the release
