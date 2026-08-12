@@ -6,6 +6,7 @@
 
 #include "autostart.h"
 #include "hdr.h"
+#include "resource.h"
 #include "snip_setting.h"
 
 namespace {
@@ -32,7 +33,7 @@ void set_tray_icon(bool add) {
     if (add) {
         g_tray.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         g_tray.uCallbackMessage = WMAPP_TRAY;
-        g_tray.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+        g_tray.hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APPICON));
         lstrcpynW(g_tray.szTip, L"HDR Screenshot Syncer", ARRAYSIZE(g_tray.szTip));
         Shell_NotifyIconW(NIM_ADD, &g_tray);
     } else {
@@ -129,6 +130,7 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ PWSTR, _In
     WNDCLASSW wc{};
     wc.lpfnWndProc = wnd_proc;
     wc.hInstance = instance;
+    wc.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(IDI_APPICON));
     wc.lpszClassName = kClassName;
     if (!RegisterClassW(&wc)) {
         return 1;
