@@ -6,8 +6,8 @@
   Version's fourth field must stay 0 for Store submissions.
 
   Full-trust packaged desktop app (rescap:runFullTrust). Unlike the sibling IME
-  tool, this one needs no elevation, so the Store build is fully functional -- the
-  only thing to confirm is that RegLoadAppKey on Snipping Tool's settings.dat
+  tool, this one needs no elevation, so the Store build is fully functional. The
+  one thing to confirm is that RegLoadAppKey on Snipping Tool's settings.dat
   works from within the package (see packaging/msix/README.md).
 -->
 <Package
