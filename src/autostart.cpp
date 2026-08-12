@@ -2,6 +2,8 @@
 
 #include <windows.h>
 
+#include <appmodel.h>
+
 #include <string>
 
 namespace autostart {
@@ -56,7 +58,18 @@ std::wstring read_value() {
 
 } // namespace
 
+bool packaged() {
+    static const bool result = [] {
+        UINT32 length = 0;
+        return GetCurrentPackageFullName(&length, nullptr) != APPMODEL_ERROR_NO_PACKAGE;
+    }();
+    return result;
+}
+
 bool enabled() {
+    if (packaged()) {
+        return false; // Run key is virtualized under MSIX; use the StartupTask.
+    }
     const std::wstring expected = launch_command();
     const std::wstring actual = read_value();
     if (expected.empty() || actual.empty()) {
@@ -66,6 +79,9 @@ bool enabled() {
 }
 
 bool set_enabled(bool on) {
+    if (packaged()) {
+        return false; // managed by the StartupTask (Windows Settings), not here
+    }
     if (!on) {
         const LSTATUS status = RegDeleteKeyValueW(HKEY_CURRENT_USER, kRunKey, kValueName);
         return status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND;
