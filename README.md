@@ -13,8 +13,6 @@ currently in HDR — so native screenshots come out right without toggling the
 setting by hand. Windows switches HDR on and off per app, so you can't tell the
 current state; this follows it automatically.
 
-Separate from ImeModePersistence on purpose — an unrelated concern.
-
 ## How it works
 
 The app sits in the system tray and, on a light timer and on every
