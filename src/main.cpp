@@ -74,8 +74,12 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 AppendMenuW(menu, MF_STRING | (g_enabled ? MF_CHECKED : MF_UNCHECKED),
                             ID_ENABLED, L"Enabled");
                 AppendMenuW(menu, MF_STRING, ID_SYNC_NOW, L"Sync now");
-                AppendMenuW(menu, MF_STRING | (autostart::enabled() ? MF_CHECKED : MF_UNCHECKED),
-                            ID_AUTOSTART, L"Start at logon");
+                if (!autostart::packaged()) {
+                    // Hidden in the MSIX build: autostart there is the package's
+                    // StartupTask, managed in Windows Settings > Startup.
+                    AppendMenuW(menu, MF_STRING | (autostart::enabled() ? MF_CHECKED : MF_UNCHECKED),
+                                ID_AUTOSTART, L"Start at logon");
+                }
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
                 AppendMenuW(menu, MF_STRING, ID_EXIT, L"Exit");
                 POINT pt{};
