@@ -1,7 +1,8 @@
 #include "autostart.h"
 
-#include <appmodel.h>
 #include <windows.h>
+
+#include <appmodel.h>
 
 #include <string>
 
