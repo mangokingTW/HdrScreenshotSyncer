@@ -1,0 +1,86 @@
+# Push the Chocolatey package when a stable release is published. A no-op until
+# the CHOCO_API_KEY secret is set; pre-releases are skipped. Version comes from
+# the tag and the zip checksums from the release's SHA256SUMS.txt, so nothing is
+# hand-edited per release.
+name: Chocolatey
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to push (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  push:
+    runs-on: windows-latest
+    env:
+      CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+      TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - name: Decide whether to run
+        id: gate
+        shell: pwsh
+        run: |
+          $skip = 'false'
+          if (-not $env:CHOCO_API_KEY) { Write-Host 'CHOCO_API_KEY not set - skipping'; $skip = 'true' }
+          if ('${{ github.event.release.prerelease }}' -eq 'true') { Write-Host 'pre-release event - skipping'; $skip = 'true' }
+          if ($env:TAG -match '-(alpha|beta|rc)\.') { Write-Host 'pre-release tag - skipping'; $skip = 'true' }
+          "skip=$skip" | Out-File -Append -Encoding utf8 $env:GITHUB_OUTPUT
+
+      - name: Checkout
+        if: steps.gate.outputs.skip == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Pack and push
+        if: steps.gate.outputs.skip == 'false'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = $env:TAG -replace '^v', ''
+          gh release download $env:TAG --repo $env:GITHUB_REPOSITORY --pattern SHA256SUMS.txt --dir .
+          function Get-Sha($pattern) {
+            $line = Select-String -Path SHA256SUMS.txt -Pattern $pattern
+            $sha = (($line.Line -split '\s+')[0]).ToUpper()
+            if ($sha -notmatch '^[A-F0-9]{64}$') { throw "no checksum for $pattern" }
+            return $sha
+          }
+          $sha64 = Get-Sha 'x64\.zip'
+          $sha86 = Get-Sha 'x86\.zip'
+          Write-Host "version=$version x64=$sha64 x86=$sha86"
+
+          $dir = 'packaging/chocolatey'
+          $install = "$dir/tools/chocolateyInstall.ps1"
+          (Get-Content $install -Raw) `
+            -replace "(?m)^\s*checksum\s*=\s*'.*'",   "  checksum       = '$sha86'" `
+            -replace "(?m)^\s*checksum64\s*=\s*'.*'", "  checksum64     = '$sha64'" |
+            Set-Content $install -Encoding utf8
+
+          $verify = @(
+            'VERIFICATION',
+            '',
+            'This package downloads the official portable build from GitHub Releases:',
+            '',
+            "  https://github.com/mangokingTW/HdrScreenshotSyncer/releases/tag/v$version",
+            '',
+            'Checksums pinned in tools\chocolateyInstall.ps1 match SHA256SUMS.txt:',
+            '',
+            "  HdrScreenshotSyncer-$version-x64.zip",
+            "  $($sha64.ToLower())",
+            "  HdrScreenshotSyncer-$version-x86.zip",
+            "  $($sha86.ToLower())",
+            '',
+            'Build provenance: gh attestation verify <file> --repo mangokingTW/HdrScreenshotSyncer',
+            'MIT License: https://github.com/mangokingTW/HdrScreenshotSyncer/blob/main/LICENSE'
+          )
+          $verify | Set-Content "$dir/tools/VERIFICATION.txt" -Encoding utf8
+
+          choco pack "$dir/hdrscreenshotsyncer.nuspec" --version $version --outputdirectory dist
+          choco apikey --key "$env:CHOCO_API_KEY" --source https://push.chocolatey.org/
+          choco push "dist/hdrscreenshotsyncer.$version.nupkg" --source https://push.chocolatey.org/ --timeout 300

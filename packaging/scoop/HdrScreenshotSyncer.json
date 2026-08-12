@@ -1,0 +1,44 @@
+{
+    "version": "0.1.0",
+    "description": "Keeps Snipping Tool's HDR screenshot color corrector in sync with the display's HDR state.",
+    "homepage": "https://github.com/mangokingTW/HdrScreenshotSyncer",
+    "license": "MIT",
+    "notes": [
+        "Runs in the tray. Right-click for Enabled / Sync now / Start at logon.",
+        "Unsigned: SmartScreen or antivirus may warn. Source, build and provenance are public; verify with 'gh attestation verify'."
+    ],
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.1.0/HdrScreenshotSyncer-0.1.0-x64.zip",
+            "hash": "dab513e473fd532c3f10ce74b735b5e0bac5a45eda0dedd4ffaad1a7cb7a824a"
+        },
+        "32bit": {
+            "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.1.0/HdrScreenshotSyncer-0.1.0-x86.zip",
+            "hash": "c0e7d8ef567463b6aedae3b075c7922634adb565c6a5a10774e748d62fa19a7d"
+        }
+    },
+    "bin": "HdrScreenshotSyncer.exe",
+    "shortcuts": [
+        [
+            "HdrScreenshotSyncer.exe",
+            "HdrScreenshotSyncer"
+        ]
+    ],
+    "checkver": "github",
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v$version/HdrScreenshotSyncer-$version-x64.zip",
+                "hash": {
+                    "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v$version/SHA256SUMS.txt"
+                }
+            },
+            "32bit": {
+                "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v$version/HdrScreenshotSyncer-$version-x86.zip",
+                "hash": {
+                    "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v$version/SHA256SUMS.txt"
+                }
+            }
+        }
+    }
+}

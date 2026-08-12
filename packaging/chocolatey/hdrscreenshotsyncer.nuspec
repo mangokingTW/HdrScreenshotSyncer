@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>hdrscreenshotsyncer</id>
+    <version>0.1.0</version>
+    <packageSourceUrl>https://github.com/mangokingTW/HdrScreenshotSyncer/tree/main/packaging/chocolatey</packageSourceUrl>
+    <owners>mangokingTW</owners>
+    <title>HdrScreenshotSyncer</title>
+    <authors>mangokingTW</authors>
+    <projectUrl>https://github.com/mangokingTW/HdrScreenshotSyncer</projectUrl>
+    <copyright>Copyright (c) mangokingTW</copyright>
+    <licenseUrl>https://github.com/mangokingTW/HdrScreenshotSyncer/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/mangokingTW/HdrScreenshotSyncer</projectSourceUrl>
+    <bugTrackerUrl>https://github.com/mangokingTW/HdrScreenshotSyncer/issues</bugTrackerUrl>
+    <releaseNotes>https://github.com/mangokingTW/HdrScreenshotSyncer/releases</releaseNotes>
+    <tags>hdrscreenshotsyncer hdr screenshot snipping-tool tray windows foss</tags>
+    <summary>Keeps Snipping Tool's HDR screenshot color corrector in sync with the display's HDR state.</summary>
+    <description>
+HdrScreenshotSyncer is a small tray utility that detects whether the display is
+currently in HDR and sets Snipping Tool's "HDR screenshot color corrector"
+(IsHDRToneMappingEnabled) to match, so native Windows screenshots come out with
+the right colors without toggling the setting by hand. Windows switches HDR on
+and off per app, so this follows it automatically.
+
+It runs locally, needs no elevation, makes no network connections, and stores
+nothing. This package installs the portable build and shims the executable; use
+the tray menu's "Start at logon" to run it automatically.
+    </description>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
