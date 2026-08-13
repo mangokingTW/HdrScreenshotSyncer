@@ -40,6 +40,14 @@ HANDLE g_wake{};              // signalled to nudge the worker out of its wait
 HANDLE g_worker{};
 HWINEVENTHOOK g_foregroundHook{};
 
+// Nudge the worker to re-evaluate now. Safe before the event exists / if it
+// failed to create.
+void wake() {
+    if (g_wake) {
+        SetEvent(g_wake);
+    }
+}
+
 // Appends one UTF-8 line to %TEMP%\HdrScreenshotSyncer-diag.log for tuning the
 // content scan. Only called while the diagnostic toggle is on.
 void diag_log(const wchar_t* line) {
@@ -152,19 +160,23 @@ DWORD WINAPI worker_proc(LPVOID) {
         if (g_enabled.load()) {
             waitMs = evaluate_and_apply() ? kThrottleMs : kIdleWaitMs;
         }
-        WaitForSingleObject(g_wake, waitMs);
+        if (g_wake) {
+            WaitForSingleObject(g_wake, waitMs);
+        } else {
+            Sleep(waitMs);
+        }
     }
     return 0;
 }
 
 void CALLBACK on_foreground_changed(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) {
-    SetEvent(g_wake);  // re-evaluate promptly when the user switches apps
+    wake();  // re-evaluate promptly when the user switches apps
 }
 
 LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_DISPLAYCHANGE:
-        SetEvent(g_wake);
+        wake();
         return 0;
 
     case WMAPP_TRAY:
@@ -197,17 +209,17 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         switch (LOWORD(wParam)) {
         case ID_ENABLED:
             g_enabled = !g_enabled.load();
-            SetEvent(g_wake);
+            wake();
             return 0;
         case ID_SYNC_NOW:
-            SetEvent(g_wake);
+            wake();
             return 0;
         case ID_AUTOSTART:
             autostart::set_enabled(!autostart::enabled());
             return 0;
         case ID_DIAGLOG:
             g_diagLog = !g_diagLog.load();
-            SetEvent(g_wake);  // log a line promptly
+            wake();  // log a line promptly
             return 0;
         case ID_EXIT:
             DestroyWindow(hwnd);
@@ -274,7 +286,7 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ PWSTR, _In
         UnhookWinEvent(g_foregroundHook);
     }
     g_running = false;
-    SetEvent(g_wake);
+    wake();
     if (g_worker) {
         WaitForSingleObject(g_worker, 2000);
         CloseHandle(g_worker);
