@@ -2,6 +2,7 @@
 
 #include <shellapi.h>
 
+#include <atomic>
 #include <optional>
 #include <string>
 
@@ -14,21 +15,30 @@
 namespace {
 
 constexpr UINT WMAPP_TRAY = WM_APP + 1;
-constexpr UINT_PTR TIMER_SYNC = 1;
 constexpr UINT ID_ENABLED = 1001;
 constexpr UINT ID_SYNC_NOW = 1002;
 constexpr UINT ID_AUTOSTART = 1003;
 constexpr UINT ID_EXIT = 1004;
 constexpr UINT ID_DIAGLOG = 1005;
-constexpr UINT kSyncIntervalMs = 3000;
+// How long a scan blocks waiting for the next desktop frame (so the worker
+// sleeps on screen updates), the minimum gap between scans while content keeps
+// changing (throttle for video), and how long to idle when there's nothing to
+// watch (disabled, or no HDR display).
+constexpr unsigned long kAcquireMs = 700;
+constexpr DWORD kThrottleMs = 700;
+constexpr DWORD kIdleWaitMs = 1000;
 constexpr wchar_t kClassName[] = L"HdrScreenshotSyncerWindow";
 constexpr wchar_t kSingleInstanceMutex[] = L"Local\\HdrScreenshotSyncer.SingleInstance";
 
 HWND g_hwnd{};
 NOTIFYICONDATAW g_tray{};
-bool g_enabled = true;
-bool g_diagLog = false;
+std::atomic<bool> g_enabled{true};
+std::atomic<bool> g_diagLog{false};
+std::atomic<bool> g_running{true};
 HANDLE g_singleInstance{};
+HANDLE g_wake{};              // signalled to nudge the worker out of its wait
+HANDLE g_worker{};
+HWINEVENTHOOK g_foregroundHook{};
 
 // Appends one UTF-8 line to %TEMP%\HdrScreenshotSyncer-diag.log for tuning the
 // content scan. Only called while the diagnostic toggle is on.
@@ -78,18 +88,18 @@ void set_tray_icon(bool add) {
 //
 // Only writes when the setting differs, and a write may fail if Snipping Tool
 // holds the hive -- the next cycle retries. When the content can't be read this
-// cycle, keep the current setting rather than flip it on missing data.
-void sync() {
-    if (!g_enabled) {
-        return;
-    }
+// cycle, keep the current setting rather than flip it on missing data. Runs on
+// the worker thread; returns whether a display is in HDR so the worker can pace
+// itself. The scan blocks up to kAcquireMs waiting for a desktop frame, so a
+// static screen costs nothing beyond that kernel wait.
+bool evaluate_and_apply() {
     bool want = false;
     bool decided = true;
     const bool displayHdr = hdr::any_display_on();
     hdr::ScanDiag diag;
     if (displayHdr) {
         const std::optional<bool> content =
-            hdr::foreground_has_hdr_content(g_diagLog ? &diag : nullptr);
+            hdr::foreground_has_hdr_content(g_diagLog.load() ? &diag : nullptr, kAcquireMs);
         if (content.has_value()) {
             want = content.value();
         } else {
@@ -106,7 +116,7 @@ void sync() {
         }
     }
 
-    if (g_diagLog) {
+    if (g_diagLog.load()) {
         wchar_t title[128]{};
         GetWindowTextW(GetForegroundWindow(), title, ARRAYSIZE(title));
         SYSTEMTIME st{};
@@ -129,18 +139,32 @@ void sync() {
                   want ? L"HDR" : L"SDR", wrote ? 1 : 0);
         diag_log(line);
     }
+    return displayHdr;
+}
+
+// Event-driven loop: the scan itself blocks on the next desktop frame (so a
+// changing screen wakes it and a static one sleeps in the kernel), and the wake
+// event lets foreground/display/menu changes nudge it between scans. No fixed
+// polling tick.
+DWORD WINAPI worker_proc(LPVOID) {
+    while (g_running.load()) {
+        DWORD waitMs = kIdleWaitMs;
+        if (g_enabled.load()) {
+            waitMs = evaluate_and_apply() ? kThrottleMs : kIdleWaitMs;
+        }
+        WaitForSingleObject(g_wake, waitMs);
+    }
+    return 0;
+}
+
+void CALLBACK on_foreground_changed(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) {
+    SetEvent(g_wake);  // re-evaluate promptly when the user switches apps
 }
 
 LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
-    case WM_TIMER:
-        if (wParam == TIMER_SYNC) {
-            sync();
-        }
-        return 0;
-
     case WM_DISPLAYCHANGE:
-        sync();
+        SetEvent(g_wake);
         return 0;
 
     case WMAPP_TRAY:
@@ -172,22 +196,18 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
         case ID_ENABLED:
-            g_enabled = !g_enabled;
-            if (g_enabled) {
-                sync();
-            }
+            g_enabled = !g_enabled.load();
+            SetEvent(g_wake);
             return 0;
         case ID_SYNC_NOW:
-            sync();
+            SetEvent(g_wake);
             return 0;
         case ID_AUTOSTART:
             autostart::set_enabled(!autostart::enabled());
             return 0;
         case ID_DIAGLOG:
-            g_diagLog = !g_diagLog;
-            if (g_diagLog) {
-                sync();  // write a first line immediately so the log appears
-            }
+            g_diagLog = !g_diagLog.load();
+            SetEvent(g_wake);  // log a line promptly
             return 0;
         case ID_EXIT:
             DestroyWindow(hwnd);
@@ -197,7 +217,6 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
     case WM_DESTROY:
-        KillTimer(hwnd, TIMER_SYNC);
         set_tray_icon(false);
         PostQuitMessage(0);
         return 0;
@@ -236,13 +255,32 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ PWSTR, _In
     }
 
     set_tray_icon(true);
-    sync();
-    SetTimer(g_hwnd, TIMER_SYNC, kSyncIntervalMs, nullptr);
+
+    // Drive the sync from a worker thread that sleeps on desktop-frame updates,
+    // nudged by the wake event on app switches / display changes / menu actions.
+    g_wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    g_worker = CreateThread(nullptr, 0, worker_proc, nullptr, 0, nullptr);
+    g_foregroundHook =
+        SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, nullptr,
+                        on_foreground_changed, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 
     MSG msg{};
     while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
+    }
+
+    if (g_foregroundHook) {
+        UnhookWinEvent(g_foregroundHook);
+    }
+    g_running = false;
+    SetEvent(g_wake);
+    if (g_worker) {
+        WaitForSingleObject(g_worker, 2000);
+        CloseHandle(g_worker);
+    }
+    if (g_wake) {
+        CloseHandle(g_wake);
     }
     return 0;
 }

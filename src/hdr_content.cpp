@@ -31,6 +31,7 @@ constexpr UINT kMaxSamplesPerAxis = 512;       // cap the scan cost on large win
 struct Capture {
     ComPtr<ID3D11Device> device;
     ComPtr<ID3D11DeviceContext> context;
+    ComPtr<IDXGIOutput5> output5;  // kept so duplication can be re-armed cheaply
     ComPtr<IDXGIOutputDuplication> dupl;
     ComPtr<ID3D11Texture2D> staging;
     RECT outputRect{};      // desktop coordinates of the duplicated output
@@ -41,6 +42,7 @@ struct Capture {
     void reset() {
         staging.Reset();
         dupl.Reset();
+        output5.Reset();
         context.Reset();
         device.Reset();
         outputRect = RECT{};
@@ -52,6 +54,21 @@ struct Capture {
 
 Capture g_cap;
 std::optional<bool> g_last;
+HWND g_lastFg = nullptr;
+
+// Re-arm the existing duplication so the next AcquireNextFrame returns the
+// current desktop even when nothing is animating (its first frame after
+// DuplicateOutput1 is always the current image). Used when the foreground window
+// changes but stays on the same output.
+bool rearm_duplication() {
+    if (!g_cap.output5 || !g_cap.device) {
+        return false;
+    }
+    g_cap.dupl.Reset();
+    const DXGI_FORMAT formats[] = {DXGI_FORMAT_R16G16B16A16_FLOAT};
+    return SUCCEEDED(g_cap.output5->DuplicateOutput1(g_cap.device.Get(), 0, ARRAYSIZE(formats),
+                                                     formats, &g_cap.dupl));
+}
 
 void set_status(ScanDiag* diag, const wchar_t* status) {
     if (diag) {
@@ -184,6 +201,7 @@ bool recreate_for_monitor(const RECT& monRect, const wchar_t* gdiName, ScanDiag*
                 return fail(L"init-duplicate", hr);
             }
 
+            g_cap.output5 = output5;
             g_cap.outputRect = desc.DesktopCoordinates;
             if (!lstrcpynW(g_cap.gdiName, gdiName, ARRAYSIZE(g_cap.gdiName))) {
                 g_cap.gdiName[0] = L'\0';
@@ -197,7 +215,7 @@ bool recreate_for_monitor(const RECT& monRect, const wchar_t* gdiName, ScanDiag*
 
 } // namespace
 
-std::optional<bool> foreground_has_hdr_content(ScanDiag* diag) {
+std::optional<bool> foreground_has_hdr_content(ScanDiag* diag, unsigned long acquireTimeoutMs) {
     HWND fg = GetForegroundWindow();
     if (!fg) {
         set_status(diag, L"no-foreground");
@@ -218,15 +236,27 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag) {
         return g_last;
     }
 
+    bool recreated = false;
     if (!g_cap.dupl || std::memcmp(&g_cap.outputRect, &mi.rcMonitor, sizeof(RECT)) != 0) {
         if (!recreate_for_monitor(mi.rcMonitor, mi.szDevice, diag)) {
             return g_last;  // recreate_for_monitor set the step/HRESULT in diag
         }
+        recreated = true;
+    }
+    if (!recreated && fg != g_lastFg) {
+        // Foreground window changed on the same output: re-arm so we get a fresh
+        // frame to scan even if the new window isn't animating.
+        rearm_duplication();
+    }
+    g_lastFg = fg;
+    if (!g_cap.dupl) {
+        set_status(diag, L"no-duplication");
+        return g_last;
     }
 
     ComPtr<IDXGIResource> res;
     DXGI_OUTDUPL_FRAME_INFO info{};
-    HRESULT hr = g_cap.dupl->AcquireNextFrame(100, &info, &res);
+    HRESULT hr = g_cap.dupl->AcquireNextFrame(acquireTimeoutMs, &info, &res);
     if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
         set_status(diag, L"acquire-timeout");
         return g_last;  // screen unchanged since last scan -- previous decision stands

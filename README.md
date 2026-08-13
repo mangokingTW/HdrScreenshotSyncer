@@ -15,11 +15,14 @@ current state; this follows it automatically.
 
 ## How it works
 
-The app sits in the system tray and, on a light timer and on every
-`WM_DISPLAYCHANGE`, decides whether the corrector should be on, then writes
-`IsHDRToneMappingEnabled` to match when it differs. The write goes through
-`RegLoadAppKey` (no admin) and retries next cycle if Snipping Tool is holding the
-hive.
+The app sits in the system tray and re-evaluates on events rather than a fixed
+poll: a worker thread blocks on the next desktop frame via Desktop Duplication
+(so a changing screen wakes it and a static one sleeps in the kernel), and a
+wake event nudges it on app switches (`EVENT_SYSTEM_FOREGROUND`) and display
+changes (`WM_DISPLAYCHANGE`). When the decision changes it writes
+`IsHDRToneMappingEnabled` to match, through `RegLoadAppKey` (no admin), retrying
+if Snipping Tool is holding the hive. Scans are throttled so a playing video
+doesn't cause constant work.
 
 Deciding "is this HDR" is the interesting part. Windows exposes **no** per-window
 or per-app HDR API, and on a display left in HDR permanently the display-level

@@ -28,6 +28,9 @@ struct ScanDiag {
 // rather than flip the setting on missing data.
 //
 // If diag is non-null it is filled with the measured values for logging.
-std::optional<bool> foreground_has_hdr_content(ScanDiag* diag = nullptr);
+// acquireTimeoutMs is how long to block waiting for the next desktop frame; a
+// larger value lets a worker thread sleep on screen updates instead of polling.
+std::optional<bool> foreground_has_hdr_content(ScanDiag* diag = nullptr,
+                                               unsigned long acquireTimeoutMs = 100);
 
 } // namespace hdr
