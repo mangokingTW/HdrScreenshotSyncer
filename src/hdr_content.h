@@ -8,6 +8,7 @@ namespace hdr {
 // the tray tool can log why it decided as it did while tuning the thresholds.
 struct ScanDiag {
     const wchar_t* status = L"";  // "ok", "sdr-output", "acquire-timeout", ...
+    long hr = 0;                  // HRESULT for the failing step, when relevant
     float sdrWhite = 0.0f;        // SDR white in scRGB (the reference the scan compares against)
     float threshold = 0.0f;       // brightness a pixel must exceed to count as HDR
     float maxChannel = 0.0f;      // brightest channel seen in the scanned region

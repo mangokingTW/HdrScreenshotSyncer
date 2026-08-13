@@ -103,13 +103,21 @@ float sdr_white_scrgb(const wchar_t* gdiDeviceName) {
 
 // Build a D3D11 device + output duplication for the output whose desktop rect
 // matches monRect. Requests an FP16 (scRGB) frame so HDR displays come back in
-// the wide-range format we scan.
-bool recreate_for_monitor(const RECT& monRect, const wchar_t* gdiName) {
+// the wide-range format we scan. On failure, records the step and HRESULT.
+bool recreate_for_monitor(const RECT& monRect, const wchar_t* gdiName, ScanDiag* diag) {
     g_cap.reset();
+    auto fail = [&](const wchar_t* step, HRESULT h) {
+        if (diag) {
+            diag->status = step;
+            diag->hr = static_cast<long>(h);
+        }
+        return false;
+    };
 
     ComPtr<IDXGIFactory1> factory;
-    if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory)))) {
-        return false;
+    HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
+    if (FAILED(hr)) {
+        return fail(L"init-factory", hr);
     }
 
     ComPtr<IDXGIAdapter1> adapter;
@@ -124,18 +132,19 @@ bool recreate_for_monitor(const RECT& monRect, const wchar_t* gdiName) {
             }
 
             ComPtr<IDXGIOutput5> output5;
-            if (FAILED(output.As(&output5))) {
-                return false;
+            hr = output.As(&output5);
+            if (FAILED(hr)) {
+                return fail(L"init-output5", hr);
             }
 
             const D3D_FEATURE_LEVEL levels[] = {D3D_FEATURE_LEVEL_11_0};
             D3D_FEATURE_LEVEL got{};
-            HRESULT hr = D3D11CreateDevice(adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, 0, levels,
-                                           ARRAYSIZE(levels), D3D11_SDK_VERSION, &g_cap.device, &got,
-                                           &g_cap.context);
+            hr = D3D11CreateDevice(adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr, 0, levels,
+                                   ARRAYSIZE(levels), D3D11_SDK_VERSION, &g_cap.device, &got,
+                                   &g_cap.context);
             if (FAILED(hr)) {
                 g_cap.reset();
-                return false;
+                return fail(L"init-d3d11", hr);
             }
 
             const DXGI_FORMAT formats[] = {DXGI_FORMAT_R16G16B16A16_FLOAT};
@@ -143,7 +152,7 @@ bool recreate_for_monitor(const RECT& monRect, const wchar_t* gdiName) {
                                            &g_cap.dupl);
             if (FAILED(hr)) {
                 g_cap.reset();
-                return false;
+                return fail(L"init-duplicate", hr);
             }
 
             g_cap.outputRect = desc.DesktopCoordinates;
@@ -154,7 +163,7 @@ bool recreate_for_monitor(const RECT& monRect, const wchar_t* gdiName) {
         }
         adapter.Reset();
     }
-    return false;
+    return fail(L"init-no-output", 0);
 }
 
 } // namespace
@@ -174,9 +183,8 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag) {
     }
 
     if (!g_cap.dupl || std::memcmp(&g_cap.outputRect, &mi.rcMonitor, sizeof(RECT)) != 0) {
-        if (!recreate_for_monitor(mi.rcMonitor, mi.szDevice)) {
-            set_status(diag, L"capture-init-failed");
-            return g_last;  // can't capture (protected/fullscreen/other) -- keep last
+        if (!recreate_for_monitor(mi.rcMonitor, mi.szDevice, diag)) {
+            return g_last;  // recreate_for_monitor set the step/HRESULT in diag
         }
     }
 
