@@ -59,6 +59,35 @@ void set_status(ScanDiag* diag, const wchar_t* status) {
     }
 }
 
+// Whether the window belongs to Snipping Tool. While it is foreground the user
+// is mid-capture and its translucent overlay isn't the content being shot, so we
+// must not re-evaluate off it -- we freeze the decision the real content set.
+bool is_snipping_tool(HWND hwnd) {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid == 0) {
+        return false;
+    }
+    HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!proc) {
+        return false;
+    }
+    wchar_t path[MAX_PATH];
+    DWORD size = ARRAYSIZE(path);
+    bool match = false;
+    if (QueryFullProcessImageNameW(proc, 0, path, &size)) {
+        const wchar_t* base = path;
+        for (const wchar_t* p = path; *p; ++p) {
+            if (*p == L'\\' || *p == L'/') {
+                base = p + 1;
+            }
+        }
+        match = lstrcmpiW(base, L"SnippingTool.exe") == 0;
+    }
+    CloseHandle(proc);
+    return match;
+}
+
 // SDR white for the given display in scRGB units (1.0 == 80 nits). Falls back to
 // a 200-nit default if the level can't be read.
 float sdr_white_scrgb(const wchar_t* gdiDeviceName) {
@@ -172,6 +201,13 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag) {
     HWND fg = GetForegroundWindow();
     if (!fg) {
         set_status(diag, L"no-foreground");
+        return g_last;
+    }
+
+    if (is_snipping_tool(fg)) {
+        // Mid-capture: hold the last content decision so the corrector doesn't
+        // flip based on Snipping Tool's own overlay right as the shot is taken.
+        set_status(diag, L"snip-foreground");
         return g_last;
     }
 

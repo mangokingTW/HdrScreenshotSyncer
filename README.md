@@ -36,7 +36,9 @@ the corrector is simply off.
 This is content-based, not app-based: it detects HDR pixels in the foreground
 window, so an SDR window showing an embedded HDR video reads as HDR. When a frame
 can't be captured (a fullscreen-exclusive game, protected content), it keeps the
-last decision rather than guess.
+last decision rather than guess. It also freezes the decision while Snipping Tool
+itself is foreground, so its translucent capture overlay can't flip the setting
+just as the shot is taken.
 
 The tray menu has Enabled, Sync now, Start at logon, and Exit. No elevation, no
 network, no data collection.
