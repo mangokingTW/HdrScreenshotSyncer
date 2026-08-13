@@ -113,10 +113,11 @@ void sync() {
         GetLocalTime(&st);
         wchar_t line[600];
         wsprintfW(line,
-                  L"%04d-%02d-%02d %02d:%02d:%02d | fg=\"%s\" | display_hdr=%d | status=%s "
+                  L"%04d-%02d-%02d %02d:%02d:%02d | fg=\"%s\" | display_hdr=%d | status=%s hr=0x%08x "
                   L"white=%d.%02d thr=%d.%02d max=%d.%02d hot=%d.%03d%% | decided=%d want=%s wrote=%d",
                   st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, title,
                   displayHdr ? 1 : 0, (diag.status && *diag.status) ? diag.status : L"-",
+                  static_cast<unsigned int>(diag.hr),
                   static_cast<int>(diag.sdrWhite),
                   static_cast<int>(diag.sdrWhite * 100) % 100,
                   static_cast<int>(diag.threshold),
@@ -209,6 +210,11 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 } // namespace
 
 int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ PWSTR, _In_ int) {
+    // Desktop Duplication's DuplicateOutput1 requires the process to be
+    // DPI-aware, and per-monitor awareness keeps window rects in the same
+    // physical pixels as the captured framebuffer on scaled displays.
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
     g_singleInstance = CreateMutexW(nullptr, TRUE, kSingleInstanceMutex);
     if (g_singleInstance && GetLastError() == ERROR_ALREADY_EXISTS) {
         return 0;
