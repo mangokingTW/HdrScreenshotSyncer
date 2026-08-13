@@ -25,7 +25,10 @@ constexpr float kAboveSdrWhite = 1.10f;       // 10% brighter than SDR white
 constexpr double kHdrPixelFraction = 0.0002;  // 0.02% of sampled pixels
 constexpr float kDefaultSdrWhiteScrgb = 2.5f;  // 200 nits / 80 (scRGB 1.0 = 80 nits)
 constexpr float kBlackFrameMax = 0.01f;        // below this the frame is all black
+constexpr float kGamutFloor = -0.02f;          // channel below this is outside sRGB (WCG/HDR)
+constexpr int kSdrDecayScans = 5;              // sustained SDR scans before a window's HDR memory fades
 constexpr UINT kMaxSamplesPerAxis = 512;       // cap the scan cost on large windows
+constexpr size_t kWindowTableSize = 16;        // per-window HDR memory (LRU)
 
 // Captured desktop-duplication state, kept alive between polls and rebuilt when
 // the foreground window moves to another output or access is lost.
@@ -56,6 +59,35 @@ struct Capture {
 Capture g_cap;
 std::optional<bool> g_last;
 HWND g_lastFg = nullptr;
+
+// Per-window HDR memory. A game's dark frames read as SDR pixel-wise, but the
+// window is an HDR app; remembering that a window has shown HDR keeps the
+// corrector on through its dark frames, while a never-HDR window (or one that
+// stays SDR long enough to fade) reads SDR. Keyed on HWND so switching apps is
+// immediately correct, with no lingering over-correction.
+struct WindowHdr {
+    HWND hwnd = nullptr;
+    bool hdrSeen = false;
+    int sdrStreak = 0;
+    unsigned long long lastTick = 0;
+};
+WindowHdr g_windows[kWindowTableSize];
+
+// The entry for hwnd, creating it in the least-recently-used slot if absent.
+WindowHdr* window_entry(HWND hwnd) {
+    WindowHdr* oldest = &g_windows[0];
+    for (WindowHdr& w : g_windows) {
+        if (w.hwnd == hwnd) {
+            return &w;
+        }
+        if (w.lastTick < oldest->lastTick) {
+            oldest = &w;
+        }
+    }
+    *oldest = WindowHdr{};
+    oldest->hwnd = hwnd;
+    return oldest;
+}
 
 // Re-arm the existing duplication so the next AcquireNextFrame returns the
 // current desktop even when nothing is animating (its first frame after
@@ -372,12 +404,15 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag, unsigned long acq
             const float r = DirectX::PackedVector::XMConvertHalfToFloat(px[0]);
             const float g = DirectX::PackedVector::XMConvertHalfToFloat(px[1]);
             const float b = DirectX::PackedVector::XMConvertHalfToFloat(px[2]);
-            const float m = r > g ? (r > b ? r : b) : (g > b ? g : b);
-            if (m > maxChannel) {
-                maxChannel = m;
+            const float mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+            const float mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+            if (mx > maxChannel) {
+                maxChannel = mx;
             }
             ++sampled;
-            if (m > threshold) {
+            // HDR-indicative: brighter than SDR white, or outside the sRGB gamut
+            // (a negative scRGB channel), which only wide-gamut/HDR content has.
+            if (mx > threshold || mn < kGamutFloor) {
                 ++hot;
             }
         }
@@ -405,7 +440,22 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag, unsigned long acq
         return g_last;
     }
 
-    const bool isHdr = hotFraction > kHdrPixelFraction;
+    // Fold this frame into the foreground window's HDR memory: a frame with HDR
+    // pixels marks the window HDR; sustained SDR frames eventually fade it.
+    const bool frameHdr = hotFraction > kHdrPixelFraction;
+    WindowHdr* w = window_entry(fg);
+    w->lastTick = GetTickCount64();
+    if (frameHdr) {
+        w->hdrSeen = true;
+        w->sdrStreak = 0;
+    } else if (w->hdrSeen && ++w->sdrStreak >= kSdrDecayScans) {
+        w->hdrSeen = false;
+    }
+
+    const bool isHdr = w->hdrSeen;
+    if (diag && isHdr && !frameHdr) {
+        diag->status = L"ok-sticky";  // HDR held from window memory on an SDR-looking frame
+    }
     g_last = isHdr;
     return isHdr;
 }
