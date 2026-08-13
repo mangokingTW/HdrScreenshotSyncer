@@ -21,9 +21,10 @@ namespace {
 // margin; the frame counts as HDR when at least this fraction of sampled pixels
 // do. SDR content in an HDR framebuffer tops out at SDR white, so the margin
 // separates it cleanly from HDR highlights. Both are tunable after real testing.
-constexpr float kAboveSdrWhite = 1.10f;      // 10% brighter than SDR white
-constexpr double kHdrPixelFraction = 0.001;  // 0.1% of sampled pixels
+constexpr float kAboveSdrWhite = 1.10f;       // 10% brighter than SDR white
+constexpr double kHdrPixelFraction = 0.0002;  // 0.02% of sampled pixels
 constexpr float kDefaultSdrWhiteScrgb = 2.5f;  // 200 nits / 80 (scRGB 1.0 = 80 nits)
+constexpr float kBlackFrameMax = 0.01f;        // below this the frame is all black
 constexpr UINT kMaxSamplesPerAxis = 512;       // cap the scan cost on large windows
 
 // Captured desktop-duplication state, kept alive between polls and rebuilt when
@@ -395,6 +396,15 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag, unsigned long acq
         diag->maxChannel = maxChannel;
         diag->hotFraction = hotFraction;
     }
+
+    // An all-black capture is an artifact of a focus change / alt-tab overlay,
+    // not real content -- keep the last decision instead of forcing SDR (which
+    // would flicker the setting off mid-game).
+    if (maxChannel <= kBlackFrameMax) {
+        set_status(diag, L"black-frame");
+        return g_last;
+    }
+
     const bool isHdr = hotFraction > kHdrPixelFraction;
     g_last = isHdr;
     return isHdr;
