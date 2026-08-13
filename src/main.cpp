@@ -25,7 +25,10 @@ constexpr UINT ID_DIAGLOG = 1005;
 // changing (throttle for video), and how long to idle when there's nothing to
 // watch (disabled, or no HDR display).
 constexpr unsigned long kAcquireMs = 700;
-constexpr DWORD kThrottleMs = 700;
+// Minimum gap between scans while the screen keeps updating. Kept fairly high so
+// incidental updates (a blinking caret, a clock) don't cause constant scanning;
+// app switches still react instantly via the foreground hook's wake.
+constexpr DWORD kThrottleMs = 2000;
 constexpr DWORD kIdleWaitMs = 1000;
 constexpr wchar_t kClassName[] = L"HdrScreenshotSyncerWindow";
 constexpr wchar_t kSingleInstanceMutex[] = L"Local\\HdrScreenshotSyncer.SingleInstance";
