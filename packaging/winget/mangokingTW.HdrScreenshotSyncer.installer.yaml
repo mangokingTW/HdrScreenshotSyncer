@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
 
 PackageIdentifier: mangokingTW.HdrScreenshotSyncer
-PackageVersion: 0.2.0
+PackageVersion: 0.2.2
 InstallerLocale: en-US
 InstallerType: inno
 Scope: user
@@ -15,23 +15,23 @@ ReleaseDate: 2026-08-13
 # asset and hash.
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.0/HdrScreenshotSyncer-0.2.0-setup.exe
-    InstallerSha256: 56DD842CC1328FFF2F370742EFEA2C76E0F72BEEA999C582F0327930E94D608C
+    InstallerUrl: https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.2/HdrScreenshotSyncer-0.2.2-setup.exe
+    InstallerSha256: F3B8A77C93A7A0E5B4CEED133FF2E9B2057BC01639617FC8DACD542C7FA6205F
     ProductCode: '{A345CF69-EF8A-4B6D-BF82-25F336A73950}_is1'
     AppsAndFeaturesEntries:
       - DisplayName: HdrScreenshotSyncer
         Publisher: mangokingTW
-        DisplayVersion: 0.2.0
+        DisplayVersion: 0.2.2
         ProductCode: '{A345CF69-EF8A-4B6D-BF82-25F336A73950}_is1'
         InstallerType: inno
   - Architecture: x86
-    InstallerUrl: https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.0/HdrScreenshotSyncer-0.2.0-setup.exe
-    InstallerSha256: 56DD842CC1328FFF2F370742EFEA2C76E0F72BEEA999C582F0327930E94D608C
+    InstallerUrl: https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.2/HdrScreenshotSyncer-0.2.2-setup.exe
+    InstallerSha256: F3B8A77C93A7A0E5B4CEED133FF2E9B2057BC01639617FC8DACD542C7FA6205F
     ProductCode: '{A345CF69-EF8A-4B6D-BF82-25F336A73950}_is1'
     AppsAndFeaturesEntries:
       - DisplayName: HdrScreenshotSyncer
         Publisher: mangokingTW
-        DisplayVersion: 0.2.0
+        DisplayVersion: 0.2.2
         ProductCode: '{A345CF69-EF8A-4B6D-BF82-25F336A73950}_is1'
         InstallerType: inno
 ManifestType: installer
