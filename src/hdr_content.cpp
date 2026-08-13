@@ -141,7 +141,9 @@ bool recreate_for_monitor(const RECT& monRect, const wchar_t* gdiName) {
             }
 
             g_cap.outputRect = desc.DesktopCoordinates;
-            lstrcpynW(g_cap.gdiName, gdiName, ARRAYSIZE(g_cap.gdiName));
+            if (!lstrcpynW(g_cap.gdiName, gdiName, ARRAYSIZE(g_cap.gdiName))) {
+                g_cap.gdiName[0] = L'\0';
+            }
             return true;
         }
         adapter.Reset();
