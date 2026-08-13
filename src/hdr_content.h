@@ -4,6 +4,16 @@
 
 namespace hdr {
 
+// Filled in by foreground_has_hdr_content when a diagnostics sink is passed, so
+// the tray tool can log why it decided as it did while tuning the thresholds.
+struct ScanDiag {
+    const wchar_t* status = L"";  // "ok", "sdr-output", "acquire-timeout", ...
+    float sdrWhite = 0.0f;        // SDR white in scRGB (the reference the scan compares against)
+    float threshold = 0.0f;       // brightness a pixel must exceed to count as HDR
+    float maxChannel = 0.0f;      // brightest channel seen in the scanned region
+    double hotFraction = 0.0;     // fraction of sampled pixels above the threshold
+};
+
 // Whether the foreground window's on-screen content is actually HDR, decided by
 // capturing the composited framebuffer and scanning for pixels brighter than
 // SDR white (in scRGB). This is the only externally observable HDR signal:
@@ -15,6 +25,8 @@ namespace hdr {
 // frame can't be captured (a fullscreen-exclusive game, protected content, a
 // transient access loss). The caller should keep its previous decision then
 // rather than flip the setting on missing data.
-std::optional<bool> foreground_has_hdr_content();
+//
+// If diag is non-null it is filled with the measured values for logging.
+std::optional<bool> foreground_has_hdr_content(ScanDiag* diag = nullptr);
 
 } // namespace hdr

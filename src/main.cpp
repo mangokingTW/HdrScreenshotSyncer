@@ -3,6 +3,7 @@
 #include <shellapi.h>
 
 #include <optional>
+#include <string>
 
 #include "autostart.h"
 #include "hdr.h"
@@ -18,6 +19,7 @@ constexpr UINT ID_ENABLED = 1001;
 constexpr UINT ID_SYNC_NOW = 1002;
 constexpr UINT ID_AUTOSTART = 1003;
 constexpr UINT ID_EXIT = 1004;
+constexpr UINT ID_DIAGLOG = 1005;
 constexpr UINT kSyncIntervalMs = 3000;
 constexpr wchar_t kClassName[] = L"HdrScreenshotSyncerWindow";
 constexpr wchar_t kSingleInstanceMutex[] = L"Local\\HdrScreenshotSyncer.SingleInstance";
@@ -25,7 +27,33 @@ constexpr wchar_t kSingleInstanceMutex[] = L"Local\\HdrScreenshotSyncer.SingleIn
 HWND g_hwnd{};
 NOTIFYICONDATAW g_tray{};
 bool g_enabled = true;
+bool g_diagLog = false;
 HANDLE g_singleInstance{};
+
+// Appends one UTF-8 line to %TEMP%\HdrScreenshotSyncer-diag.log for tuning the
+// content scan. Only called while the diagnostic toggle is on.
+void diag_log(const wchar_t* line) {
+    wchar_t path[MAX_PATH]{};
+    const DWORD n = GetTempPathW(MAX_PATH, path);
+    if (n == 0 || n > MAX_PATH) {
+        return;
+    }
+    lstrcatW(path, L"HdrScreenshotSyncer-diag.log");
+    HANDLE h = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        return;
+    }
+    const int len = WideCharToMultiByte(CP_UTF8, 0, line, -1, nullptr, 0, nullptr, nullptr);
+    if (len > 1) {
+        std::string buf(static_cast<size_t>(len - 1), '\0');
+        WideCharToMultiByte(CP_UTF8, 0, line, -1, buf.data(), len, nullptr, nullptr);
+        buf += "\r\n";
+        DWORD written = 0;
+        WriteFile(h, buf.data(), static_cast<DWORD>(buf.size()), &written, nullptr);
+    }
+    CloseHandle(h);
+}
 
 void set_tray_icon(bool add) {
     g_tray.cbSize = sizeof(g_tray);
@@ -56,16 +84,49 @@ void sync() {
         return;
     }
     bool want = false;
-    if (hdr::any_display_on()) {
-        const std::optional<bool> content = hdr::foreground_has_hdr_content();
-        if (!content.has_value()) {
-            return;
+    bool decided = true;
+    const bool displayHdr = hdr::any_display_on();
+    hdr::ScanDiag diag;
+    if (displayHdr) {
+        const std::optional<bool> content =
+            hdr::foreground_has_hdr_content(g_diagLog ? &diag : nullptr);
+        if (content.has_value()) {
+            want = content.value();
+        } else {
+            decided = false;
         }
-        want = content.value();
     }
-    const std::optional<bool> current = snip::read();
-    if (!current.has_value() || current.value() != want) {
-        snip::write(want);
+
+    bool wrote = false;
+    if (decided) {
+        const std::optional<bool> current = snip::read();
+        if (!current.has_value() || current.value() != want) {
+            snip::write(want);
+            wrote = true;
+        }
+    }
+
+    if (g_diagLog) {
+        wchar_t title[128]{};
+        GetWindowTextW(GetForegroundWindow(), title, ARRAYSIZE(title));
+        SYSTEMTIME st{};
+        GetLocalTime(&st);
+        wchar_t line[600];
+        wsprintfW(line,
+                  L"%04d-%02d-%02d %02d:%02d:%02d | fg=\"%s\" | display_hdr=%d | status=%s "
+                  L"white=%d.%02d thr=%d.%02d max=%d.%02d hot=%d.%03d%% | decided=%d want=%s wrote=%d",
+                  st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, title,
+                  displayHdr ? 1 : 0, (diag.status && *diag.status) ? diag.status : L"-",
+                  static_cast<int>(diag.sdrWhite),
+                  static_cast<int>(diag.sdrWhite * 100) % 100,
+                  static_cast<int>(diag.threshold),
+                  static_cast<int>(diag.threshold * 100) % 100,
+                  static_cast<int>(diag.maxChannel),
+                  static_cast<int>(diag.maxChannel * 100) % 100,
+                  static_cast<int>(diag.hotFraction * 100),
+                  static_cast<int>(diag.hotFraction * 100000) % 1000, decided ? 1 : 0,
+                  want ? L"HDR" : L"SDR", wrote ? 1 : 0);
+        diag_log(line);
     }
 }
 
@@ -94,6 +155,8 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     AppendMenuW(menu, MF_STRING | (autostart::enabled() ? MF_CHECKED : MF_UNCHECKED),
                                 ID_AUTOSTART, L"Start at logon");
                 }
+                AppendMenuW(menu, MF_STRING | (g_diagLog ? MF_CHECKED : MF_UNCHECKED),
+                            ID_DIAGLOG, L"Write diagnostic log");
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
                 AppendMenuW(menu, MF_STRING, ID_EXIT, L"Exit");
                 POINT pt{};
@@ -118,6 +181,12 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             return 0;
         case ID_AUTOSTART:
             autostart::set_enabled(!autostart::enabled());
+            return 0;
+        case ID_DIAGLOG:
+            g_diagLog = !g_diagLog;
+            if (g_diagLog) {
+                sync();  // write a first line immediately so the log appears
+            }
             return 0;
         case ID_EXIT:
             DestroyWindow(hwnd);

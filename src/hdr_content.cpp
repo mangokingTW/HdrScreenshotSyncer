@@ -53,6 +53,12 @@ struct Capture {
 Capture g_cap;
 std::optional<bool> g_last;
 
+void set_status(ScanDiag* diag, const wchar_t* status) {
+    if (diag) {
+        diag->status = status;
+    }
+}
+
 // SDR white for the given display in scRGB units (1.0 == 80 nits). Falls back to
 // a 200-nit default if the level can't be read.
 float sdr_white_scrgb(const wchar_t* gdiDeviceName) {
@@ -153,20 +159,23 @@ bool recreate_for_monitor(const RECT& monRect, const wchar_t* gdiName) {
 
 } // namespace
 
-std::optional<bool> foreground_has_hdr_content() {
+std::optional<bool> foreground_has_hdr_content(ScanDiag* diag) {
     HWND fg = GetForegroundWindow();
     if (!fg) {
+        set_status(diag, L"no-foreground");
         return g_last;
     }
 
     MONITORINFOEXW mi{};
     mi.cbSize = sizeof(mi);
     if (!GetMonitorInfoW(MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST), &mi)) {
+        set_status(diag, L"monitor-info-failed");
         return g_last;
     }
 
     if (!g_cap.dupl || std::memcmp(&g_cap.outputRect, &mi.rcMonitor, sizeof(RECT)) != 0) {
         if (!recreate_for_monitor(mi.rcMonitor, mi.szDevice)) {
+            set_status(diag, L"capture-init-failed");
             return g_last;  // can't capture (protected/fullscreen/other) -- keep last
         }
     }
@@ -175,19 +184,23 @@ std::optional<bool> foreground_has_hdr_content() {
     DXGI_OUTDUPL_FRAME_INFO info{};
     HRESULT hr = g_cap.dupl->AcquireNextFrame(100, &info, &res);
     if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+        set_status(diag, L"acquire-timeout");
         return g_last;  // screen unchanged since last scan -- previous decision stands
     }
     if (hr == DXGI_ERROR_ACCESS_LOST) {
         g_cap.reset();
+        set_status(diag, L"access-lost");
         return g_last;
     }
     if (FAILED(hr)) {
+        set_status(diag, L"acquire-failed");
         return g_last;
     }
 
     ComPtr<ID3D11Texture2D> frame;
     if (FAILED(res.As(&frame))) {
         g_cap.dupl->ReleaseFrame();
+        set_status(diag, L"resource-qi-failed");
         return g_last;
     }
 
@@ -196,6 +209,7 @@ std::optional<bool> foreground_has_hdr_content() {
     if (fd.Format != DXGI_FORMAT_R16G16B16A16_FLOAT) {
         // Not an FP16 frame => this output isn't in HDR, so its content is SDR.
         g_cap.dupl->ReleaseFrame();
+        set_status(diag, L"sdr-output");
         g_last = false;
         return false;
     }
@@ -214,6 +228,7 @@ std::optional<bool> foreground_has_hdr_content() {
     const LONG ly = scan.top - g_cap.outputRect.top;
     if (lx < 0 || ly < 0 || scan.right <= scan.left || scan.bottom <= scan.top) {
         g_cap.dupl->ReleaseFrame();
+        set_status(diag, L"rect-invalid");
         return g_last;
     }
     UINT sw = static_cast<UINT>(scan.right - scan.left);
@@ -226,6 +241,7 @@ std::optional<bool> foreground_has_hdr_content() {
     }
     if (sw == 0 || sh == 0) {
         g_cap.dupl->ReleaseFrame();
+        set_status(diag, L"rect-empty");
         return g_last;
     }
 
@@ -242,6 +258,7 @@ std::optional<bool> foreground_has_hdr_content() {
         sd.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
         if (FAILED(g_cap.device->CreateTexture2D(&sd, nullptr, &g_cap.staging))) {
             g_cap.dupl->ReleaseFrame();
+            set_status(diag, L"staging-failed");
             return g_last;
         }
         g_cap.stagingW = sw;
@@ -260,14 +277,17 @@ std::optional<bool> foreground_has_hdr_content() {
 
     D3D11_MAPPED_SUBRESOURCE map{};
     if (FAILED(g_cap.context->Map(g_cap.staging.Get(), 0, D3D11_MAP_READ, 0, &map))) {
+        set_status(diag, L"map-failed");
         return g_last;
     }
 
-    const float threshold = sdr_white_scrgb(g_cap.gdiName) * kAboveSdrWhite;
+    const float sdrWhite = sdr_white_scrgb(g_cap.gdiName);
+    const float threshold = sdrWhite * kAboveSdrWhite;
     const UINT strideX = sw > kMaxSamplesPerAxis ? sw / kMaxSamplesPerAxis : 1;
     const UINT strideY = sh > kMaxSamplesPerAxis ? sh / kMaxSamplesPerAxis : 1;
     uint64_t sampled = 0;
     uint64_t hot = 0;
+    float maxChannel = 0.0f;
     const auto* base = static_cast<const uint8_t*>(map.pData);
     for (UINT y = 0; y < sh; y += strideY) {
         const auto* row =
@@ -278,6 +298,9 @@ std::optional<bool> foreground_has_hdr_content() {
             const float g = DirectX::PackedVector::XMConvertHalfToFloat(px[1]);
             const float b = DirectX::PackedVector::XMConvertHalfToFloat(px[2]);
             const float m = r > g ? (r > b ? r : b) : (g > b ? g : b);
+            if (m > maxChannel) {
+                maxChannel = m;
+            }
             ++sampled;
             if (m > threshold) {
                 ++hot;
@@ -287,10 +310,18 @@ std::optional<bool> foreground_has_hdr_content() {
     g_cap.context->Unmap(g_cap.staging.Get(), 0);
 
     if (sampled == 0) {
+        set_status(diag, L"no-samples");
         return g_last;
     }
-    const bool isHdr =
-        static_cast<double>(hot) / static_cast<double>(sampled) > kHdrPixelFraction;
+    const double hotFraction = static_cast<double>(hot) / static_cast<double>(sampled);
+    if (diag) {
+        diag->status = L"ok";
+        diag->sdrWhite = sdrWhite;
+        diag->threshold = threshold;
+        diag->maxChannel = maxChannel;
+        diag->hotFraction = hotFraction;
+    }
+    const bool isHdr = hotFraction > kHdrPixelFraction;
     g_last = isHdr;
     return isHdr;
 }
