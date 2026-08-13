@@ -26,7 +26,7 @@ constexpr double kHdrPixelFraction = 0.0002;  // 0.02% of sampled pixels
 constexpr float kDefaultSdrWhiteScrgb = 2.5f;  // 200 nits / 80 (scRGB 1.0 = 80 nits)
 constexpr float kBlackFrameMax = 0.01f;        // below this the frame is all black
 constexpr float kGamutFloor = -0.02f;          // channel below this is outside sRGB (WCG/HDR)
-constexpr int kSdrDecayScans = 5;              // sustained SDR scans before a window's HDR memory fades
+constexpr int kSdrDecayScans = 3;              // sustained SDR scans before a window's HDR memory fades
 constexpr UINT kMaxSamplesPerAxis = 512;       // cap the scan cost on large windows
 constexpr size_t kWindowTableSize = 16;        // per-window HDR memory (LRU)
 
