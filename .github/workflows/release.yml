@@ -44,10 +44,6 @@ jobs:
           if ($LASTEXITCODE) { throw "configure x64 failed" }
           cmake --build build-x64 --config Release
           if ($LASTEXITCODE) { throw "build x64 failed" }
-          cmake -S . -B build-x86 -A Win32
-          if ($LASTEXITCODE) { throw "configure x86 failed" }
-          cmake --build build-x86 --config Release
-          if ($LASTEXITCODE) { throw "build x86 failed" }
 
       - name: Build installer
         shell: pwsh
@@ -60,10 +56,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          foreach ($arch in 'x64', 'x86') {
-            $build = if ($arch -eq 'x64') { 'build-x64' } else { 'build-x86' }
+          foreach ($arch in @('x64')) {
             Compress-Archive `
-              -Path "$build/Release/HdrScreenshotSyncer.exe", 'README.md', 'LICENSE' `
+              -Path "build-$arch/Release/HdrScreenshotSyncer.exe", 'README.md', 'LICENSE' `
               -DestinationPath "dist/HdrScreenshotSyncer-$env:FILEVER-$arch.zip"
           }
 

@@ -14,9 +14,13 @@ does the rest.
 | Scoop | `mango/HdrScreenshotSyncer` | manifest in [`packaging/scoop`](../packaging/scoop), updated separately |
 | winget | `mangokingTW.HdrScreenshotSyncer` | manifest in [`packaging/winget`](../packaging/winget), updated separately |
 
-Release assets: the installer (`-setup.exe`), portable `-x64.zip` / `-x86.zip`,
-the Store `.msix`, `SHA256SUMS.txt`, and the SLSA provenance bundle
+Release assets: the installer (`-setup.exe`), portable `-x64.zip`, the Store
+`.msix`, `SHA256SUMS.txt`, and the SLSA provenance bundle
 (`multiple.intoto.jsonl`).
+
+Builds are **x64 only** — Windows 11 has no 32-bit edition and 32-bit Windows 10
+is end-of-life, so there is no x86 build; the installer refuses to run on a
+32-bit OS.
 
 ## Cutting a release
 
@@ -29,7 +33,7 @@ the Store `.msix`, `SHA256SUMS.txt`, and the SLSA provenance bundle
      the resubmission.
    - `CHANGELOG.md` — add a `## vX.Y.Z` section (see [CHANGELOG format](#changelog-format)).
 2. Open a PR and merge to `main` (branch-protected; required checks: `version
-   bump`, `x64`, `x86`).
+   bump`, `x64`).
 3. Tag `main` and push:
    ```sh
    git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z
@@ -46,7 +50,7 @@ pre-release, never becomes "Latest", and the Store step is skipped.
 ## What `release.yml` does
 
 1. **Derive version** from the tag (`FILEVER` = full, `VERSION` = numeric).
-2. **Build** x64 + x86 (CMake/MSVC Release).
+2. **Build** x64 (CMake/MSVC Release).
 3. **Build installer** (Inno Setup, `installer/HdrScreenshotSyncer.iss`).
 4. **Package** portable zips; **build the MSIX** (`packaging/msix/build.ps1`).
 5. **Checksums** + **build provenance attestation**.
