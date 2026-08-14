@@ -13,6 +13,9 @@ currently in HDR — so native screenshots come out right without toggling the
 setting by hand. Windows switches HDR on and off per app, so you can't tell the
 current state; this follows it automatically.
 
+Usage guide (install, tray menu, App overrides) is in the
+**[wiki](https://github.com/mangokingTW/HdrScreenshotSyncer/wiki)**.
+
 ## How it works
 
 The app sits in the system tray and re-evaluates on events rather than a fixed
