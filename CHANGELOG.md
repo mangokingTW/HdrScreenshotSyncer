@@ -7,6 +7,15 @@ release note reads as a finished, formatted note rather than a raw changelog.
 Keep each section to what changed; the boilerplate is added automatically. If a
 tag has no section here, the workflow falls back to auto-generated notes.
 
+## v0.2.6
+
+Microsoft Store: the app package now advertises its Traditional Chinese
+(Taiwan) support, so the Store can present the listing with Traditional Chinese
+store info. The in-app UI was already bilingual — this just lets the Store show
+a Chinese listing too.
+
+繁體中文:App 封裝現在會宣告支援繁體中文(台灣),讓 Microsoft Store 能以繁體中文呈現商店資訊。App 介面原本就已中英雙語,這次是讓商店也能顯示中文的商店列表。
+
 ## v0.2.5
 
 Overview of everything HdrScreenshotSyncer does — it keeps Windows Snipping
