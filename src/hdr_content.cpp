@@ -621,12 +621,16 @@ void ensure_overrides_file() {
     static const char kTemplate[] =
         "# HdrScreenshotSyncer per-app overrides\r\n"
         "# One rule per line:  <process.exe> = hdr | sdr\r\n"
-        "# Forces the corrector for that app, skipping pixel detection. Use it for\r\n"
-        "# apps that need the corrector but show no bright / wide-gamut pixels\r\n"
-        "# (e.g. Discord), or to force an app to SDR. Lines starting with # are ignored.\r\n"
-        "# Changes take effect within a few seconds; no restart needed.\r\n"
+        "# Forces the corrector for that app, skipping pixel detection -- for an app\r\n"
+        "# that is genuinely HDR but shows no bright / wide-gamut pixels, or to force\r\n"
+        "# SDR. Lines starting with # are ignored; changes apply within a few seconds.\r\n"
         "#\r\n"
-        "# Discord.exe = hdr\r\n";
+        "# Note: some apps look wrong with BOTH settings -- too bright with the\r\n"
+        "# corrector off, too dark with it on (e.g. Discord with hardware acceleration\r\n"
+        "# on). No override can fix that; turn off that app's hardware acceleration\r\n"
+        "# instead, which makes it plain SDR and correct.\r\n"
+        "#\r\n"
+        "# Example:  SomeHdrApp.exe = hdr\r\n";
     DWORD written = 0;
     WriteFile(h, kTemplate, static_cast<DWORD>(sizeof(kTemplate) - 1), &written, nullptr);
     CloseHandle(h);

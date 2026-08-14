@@ -43,8 +43,19 @@ last decision rather than guess. It also freezes the decision while Snipping Too
 itself is foreground, so its translucent capture overlay can't flip the setting
 just as the shot is taken.
 
-The tray menu has Enabled, Sync now, Start at logon, and Exit. No elevation, no
-network, no data collection.
+The tray menu has Enabled, Sync now, Start at logon, Edit app overrides, and
+Exit. No elevation, no network, no data collection.
+
+**App overrides.** A few apps present an HDR swapchain whose need for the
+corrector isn't visible in the captured pixels (it depends on the app's own GPU
+presentation, which no API exposes). "Edit app overrides…" opens a small file
+where you can force a process by name — `Discord.exe = hdr` or `= sdr` — to skip
+pixel detection.
+
+One caveat: some apps (e.g. **Discord with hardware acceleration on**) look wrong
+with *both* corrector states — too bright with it off, too dark with it on — so
+no override can fix them. Turning off that app's hardware acceleration makes it
+plain SDR and correct.
 
 ## Install
 
