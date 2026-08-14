@@ -395,6 +395,7 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag, unsigned long acq
     uint64_t sampled = 0;
     uint64_t hot = 0;
     float maxChannel = 0.0f;
+    float minChannel = 0.0f;
     const auto* base = static_cast<const uint8_t*>(map.pData);
     for (UINT y = 0; y < sh; y += strideY) {
         const auto* row =
@@ -408,6 +409,9 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag, unsigned long acq
             const float mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
             if (mx > maxChannel) {
                 maxChannel = mx;
+            }
+            if (mn < minChannel) {
+                minChannel = mn;
             }
             ++sampled;
             // HDR-indicative: brighter than SDR white, or outside the sRGB gamut
@@ -429,6 +433,7 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag, unsigned long acq
         diag->sdrWhite = sdrWhite;
         diag->threshold = threshold;
         diag->maxChannel = maxChannel;
+        diag->minChannel = minChannel;
         diag->hotFraction = hotFraction;
     }
 
