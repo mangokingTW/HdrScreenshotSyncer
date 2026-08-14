@@ -144,15 +144,24 @@ bool foreground_exe(HWND hwnd, wchar_t* out, int cap) {
     return lstrcpynW(out, base, cap) != nullptr;
 }
 
-// Per-app HDR/SDR overrides, read from a text file the user edits. Some apps
-// need the corrector but produce no HDR/wide-gamut pixels (Discord, whose HDR
-// presentation isn't visible in the captured framebuffer), so pixel detection
-// can't reach them -- a process-name override is the only reliable signal.
-struct AppOverride {
-    std::wstring exe;
-    bool hdr;
-};
-std::vector<AppOverride> g_overrides;
+// Per-app HDR/SDR overrides. Some apps need the corrector but produce no
+// HDR/wide-gamut pixels (Discord, whose HDR presentation isn't visible in the
+// captured framebuffer), so pixel detection can't reach them -- a process-name
+// override is the only reliable signal. The settings dialog reads/writes the
+// file; the detection worker keeps its own copy (g_overrides) and re-reads only
+// when the file changes, so the two threads share the file, not memory.
+const char kOverridesHeader[] =
+    "# HdrScreenshotSyncer per-app overrides\r\n"
+    "# One rule per line:  <process.exe> = hdr | sdr\r\n"
+    "# Forces the corrector for that app, skipping pixel detection. Edit this from\r\n"
+    "# the tray (\"App overrides...\") or by hand; changes apply within a few seconds.\r\n"
+    "#\r\n"
+    "# Note: some apps look wrong with BOTH settings -- too bright with the corrector\r\n"
+    "# off, too dark with it on (e.g. Discord with hardware acceleration on). No\r\n"
+    "# override fixes that; turn off that app's hardware acceleration instead.\r\n"
+    "\r\n";
+
+std::vector<AppRule> g_overrides;  // detection worker's copy
 FILETIME g_overridesTime{};
 bool g_overridesChecked = false;
 
@@ -165,7 +174,8 @@ std::wstring overrides_path() {
     return std::wstring(base) + L"\\HdrScreenshotSyncer\\overrides.txt";
 }
 
-void parse_overrides(const std::string& utf8) {
+std::vector<AppRule> parse_rules(const std::string& utf8) {
+    std::vector<AppRule> rules;
     const int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()),
                                          nullptr, 0);
     std::wstring text(static_cast<size_t>(wlen), L'\0');
@@ -206,11 +216,68 @@ void parse_overrides(const std::string& utf8) {
         }
         const wchar_t v = value[0];
         if (v == L'h' || v == L'H') {
-            g_overrides.push_back({name, true});
+            rules.push_back({name, true});
         } else if (v == L's' || v == L'S') {
-            g_overrides.push_back({name, false});
+            rules.push_back({name, false});
         }
     }
+    return rules;
+}
+
+// Reads and parses the file. Returns false if it can't be read (no file).
+bool read_rules_file(std::vector<AppRule>& out) {
+    out.clear();
+    const std::wstring path = overrides_path();
+    if (path.empty()) {
+        return false;
+    }
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    LARGE_INTEGER sz{};
+    if (GetFileSizeEx(h, &sz) && sz.QuadPart > 0 && sz.QuadPart < (1 << 20)) {
+        std::string buf(static_cast<size_t>(sz.QuadPart), '\0');
+        DWORD read = 0;
+        if (ReadFile(h, buf.data(), static_cast<DWORD>(buf.size()), &read, nullptr)) {
+            buf.resize(read);
+            out = parse_rules(buf);
+        }
+    }
+    CloseHandle(h);
+    return true;
+}
+
+// Writes the header comment plus the rules, creating the folder if needed.
+void write_rules_file(const std::vector<AppRule>& rules) {
+    const std::wstring path = overrides_path();
+    if (path.empty()) {
+        return;
+    }
+    const size_t slash = path.find_last_of(L'\\');
+    if (slash != std::wstring::npos) {
+        CreateDirectoryW(path.substr(0, slash).c_str(), nullptr);
+    }
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        return;
+    }
+    DWORD written = 0;
+    WriteFile(h, kOverridesHeader, static_cast<DWORD>(sizeof(kOverridesHeader) - 1), &written,
+              nullptr);
+    for (const AppRule& r : rules) {
+        std::wstring wline = r.exe + (r.hdr ? L" = hdr\r\n" : L" = sdr\r\n");
+        const int len = WideCharToMultiByte(CP_UTF8, 0, wline.c_str(), -1, nullptr, 0, nullptr,
+                                            nullptr);
+        if (len > 1) {
+            std::string line(static_cast<size_t>(len - 1), '\0');
+            WideCharToMultiByte(CP_UTF8, 0, wline.c_str(), -1, line.data(), len, nullptr, nullptr);
+            WriteFile(h, line.data(), static_cast<DWORD>(line.size()), &written, nullptr);
+        }
+    }
+    CloseHandle(h);
 }
 
 void reload_overrides_if_changed() {
@@ -230,27 +297,11 @@ void reload_overrides_if_changed() {
     }
     g_overridesChecked = true;
     g_overridesTime = fa.ftLastWriteTime;
-    g_overrides.clear();
-
-    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) {
-        return;
-    }
-    LARGE_INTEGER sz{};
-    if (GetFileSizeEx(h, &sz) && sz.QuadPart > 0 && sz.QuadPart < (1 << 20)) {
-        std::string buf(static_cast<size_t>(sz.QuadPart), '\0');
-        DWORD read = 0;
-        if (ReadFile(h, buf.data(), static_cast<DWORD>(buf.size()), &read, nullptr)) {
-            buf.resize(read);
-            parse_overrides(buf);
-        }
-    }
-    CloseHandle(h);
+    read_rules_file(g_overrides);
 }
 
 std::optional<bool> override_for(const wchar_t* exe) {
-    for (const AppOverride& o : g_overrides) {
+    for (const AppRule& o : g_overrides) {
         if (lstrcmpiW(o.exe.c_str(), exe) == 0) {
             return o.hdr;
         }
@@ -604,36 +655,39 @@ std::wstring overrides_file_path() {
     return overrides_path();
 }
 
-void ensure_overrides_file() {
-    const std::wstring path = overrides_path();
-    if (path.empty() || GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) {
-        return;  // can't resolve, or already exists
-    }
-    const size_t slash = path.find_last_of(L'\\');
-    if (slash != std::wstring::npos) {
-        CreateDirectoryW(path.substr(0, slash).c_str(), nullptr);
-    }
-    HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,
-                           nullptr);
-    if (h == INVALID_HANDLE_VALUE) {
+std::vector<AppRule> list_overrides() {
+    std::vector<AppRule> rules;
+    read_rules_file(rules);
+    return rules;
+}
+
+void set_override(const std::wstring& exe, bool hdr) {
+    if (exe.empty()) {
         return;
     }
-    static const char kTemplate[] =
-        "# HdrScreenshotSyncer per-app overrides\r\n"
-        "# One rule per line:  <process.exe> = hdr | sdr\r\n"
-        "# Forces the corrector for that app, skipping pixel detection -- for an app\r\n"
-        "# that is genuinely HDR but shows no bright / wide-gamut pixels, or to force\r\n"
-        "# SDR. Lines starting with # are ignored; changes apply within a few seconds.\r\n"
-        "#\r\n"
-        "# Note: some apps look wrong with BOTH settings -- too bright with the\r\n"
-        "# corrector off, too dark with it on (e.g. Discord with hardware acceleration\r\n"
-        "# on). No override can fix that; turn off that app's hardware acceleration\r\n"
-        "# instead, which makes it plain SDR and correct.\r\n"
-        "#\r\n"
-        "# Example:  SomeHdrApp.exe = hdr\r\n";
-    DWORD written = 0;
-    WriteFile(h, kTemplate, static_cast<DWORD>(sizeof(kTemplate) - 1), &written, nullptr);
-    CloseHandle(h);
+    std::vector<AppRule> rules;
+    read_rules_file(rules);
+    for (AppRule& r : rules) {
+        if (lstrcmpiW(r.exe.c_str(), exe.c_str()) == 0) {
+            r.hdr = hdr;
+            write_rules_file(rules);
+            return;
+        }
+    }
+    rules.push_back({exe, hdr});
+    write_rules_file(rules);
+}
+
+void remove_override(const std::wstring& exe) {
+    std::vector<AppRule> rules;
+    read_rules_file(rules);
+    for (size_t i = 0; i < rules.size(); ++i) {
+        if (lstrcmpiW(rules[i].exe.c_str(), exe.c_str()) == 0) {
+            rules.erase(rules.begin() + static_cast<std::ptrdiff_t>(i));
+            write_rules_file(rules);
+            return;
+        }
+    }
 }
 
 } // namespace hdr
