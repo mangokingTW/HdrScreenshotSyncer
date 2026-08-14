@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace hdr {
 
@@ -35,13 +36,25 @@ struct ScanDiag {
 std::optional<bool> foreground_has_hdr_content(ScanDiag* diag = nullptr,
                                                unsigned long acquireTimeoutMs = 100);
 
-// The per-app override file (%LOCALAPPDATA%\HdrScreenshotSyncer\overrides.txt);
-// empty if it can't be located. A process listed there (e.g. `Discord.exe = hdr`)
-// forces the corrector regardless of pixels -- the only reliable signal for apps
-// whose HDR presentation doesn't show up in the captured framebuffer.
-std::wstring overrides_file_path();
+// A per-app override rule: force `exe` (process image name, e.g. "Discord.exe")
+// to HDR (corrector on) or SDR, skipping pixel detection -- the only reliable
+// signal for apps whose HDR presentation doesn't show up in the captured pixels.
+struct AppRule {
+    std::wstring exe;
+    bool hdr;
+};
 
-// Create the override file with a commented template if it doesn't exist yet.
-void ensure_overrides_file();
+// The override file's rules (read fresh). The settings dialog uses these; the
+// detection worker keeps its own copy and re-reads the file when it changes.
+std::vector<AppRule> list_overrides();
+
+// Add or update (case-insensitive on exe), then write the file.
+void set_override(const std::wstring& exe, bool hdr);
+
+// Remove the rule for exe (if any), then write the file.
+void remove_override(const std::wstring& exe);
+
+// Path to the override file (%LOCALAPPDATA%\HdrScreenshotSyncer\overrides.txt).
+std::wstring overrides_file_path();
 
 } // namespace hdr

@@ -9,8 +9,10 @@
 #include "autostart.h"
 #include "hdr.h"
 #include "hdr_content.h"
+#include "overrides_dialog.h"
 #include "resource.h"
 #include "snip_setting.h"
+#include "strings.h"
 
 namespace {
 
@@ -35,6 +37,7 @@ constexpr wchar_t kClassName[] = L"HdrScreenshotSyncerWindow";
 constexpr wchar_t kSingleInstanceMutex[] = L"Local\\HdrScreenshotSyncer.SingleInstance";
 
 HWND g_hwnd{};
+HINSTANCE g_instance{};
 NOTIFYICONDATAW g_tray{};
 std::atomic<bool> g_enabled{true};
 std::atomic<bool> g_diagLog{false};
@@ -85,7 +88,9 @@ void set_tray_icon(bool add) {
         g_tray.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         g_tray.uCallbackMessage = WMAPP_TRAY;
         g_tray.hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APPICON));
-        lstrcpynW(g_tray.szTip, L"HDR Screenshot Syncer", ARRAYSIZE(g_tray.szTip));
+        if (!lstrcpynW(g_tray.szTip, text::s().trayTip, ARRAYSIZE(g_tray.szTip))) {
+            g_tray.szTip[0] = L'\0';
+        }
         Shell_NotifyIconW(NIM_ADD, &g_tray);
     } else {
         Shell_NotifyIconW(NIM_DELETE, &g_tray);
@@ -190,20 +195,21 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         if (lParam == WM_RBUTTONUP) {
             HMENU menu = CreatePopupMenu();
             if (menu) {
+                const text::Strings& t = text::s();
                 AppendMenuW(menu, MF_STRING | (g_enabled ? MF_CHECKED : MF_UNCHECKED),
-                            ID_ENABLED, L"Enabled");
-                AppendMenuW(menu, MF_STRING, ID_SYNC_NOW, L"Sync now");
+                            ID_ENABLED, t.menuEnabled);
+                AppendMenuW(menu, MF_STRING, ID_SYNC_NOW, t.menuSyncNow);
                 if (!autostart::packaged()) {
                     // Hidden in the MSIX build: autostart there is the package's
                     // StartupTask, managed in Windows Settings > Startup.
                     AppendMenuW(menu, MF_STRING | (autostart::enabled() ? MF_CHECKED : MF_UNCHECKED),
-                                ID_AUTOSTART, L"Start at logon");
+                                ID_AUTOSTART, t.menuStartLogon);
                 }
-                AppendMenuW(menu, MF_STRING, ID_OVERRIDES, L"Edit app overrides…");
+                AppendMenuW(menu, MF_STRING, ID_OVERRIDES, t.menuOverrides);
                 AppendMenuW(menu, MF_STRING | (g_diagLog ? MF_CHECKED : MF_UNCHECKED),
-                            ID_DIAGLOG, L"Write diagnostic log");
+                            ID_DIAGLOG, t.menuDiagLog);
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-                AppendMenuW(menu, MF_STRING, ID_EXIT, L"Exit");
+                AppendMenuW(menu, MF_STRING, ID_EXIT, t.menuExit);
                 POINT pt{};
                 GetCursorPos(&pt);
                 SetForegroundWindow(hwnd);
@@ -229,14 +235,9 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             g_diagLog = !g_diagLog.load();
             wake();  // log a line promptly
             return 0;
-        case ID_OVERRIDES: {
-            hdr::ensure_overrides_file();
-            const std::wstring path = hdr::overrides_file_path();
-            if (!path.empty()) {
-                ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
-            }
+        case ID_OVERRIDES:
+            overrides::show(g_instance, hwnd);
             return 0;
-        }
         case ID_EXIT:
             DestroyWindow(hwnd);
             return 0;
@@ -261,6 +262,8 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ PWSTR, _In
     // DPI-aware, and per-monitor awareness keeps window rects in the same
     // physical pixels as the captured framebuffer on scaled displays.
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+    g_instance = instance;
 
     g_singleInstance = CreateMutexW(nullptr, TRUE, kSingleInstanceMutex);
     if (g_singleInstance && GetLastError() == ERROR_ALREADY_EXISTS) {
