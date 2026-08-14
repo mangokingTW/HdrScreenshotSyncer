@@ -141,8 +141,7 @@ bool foreground_exe(HWND hwnd, wchar_t* out, int cap) {
             base = p + 1;
         }
     }
-    lstrcpynW(out, base, cap);
-    return true;
+    return lstrcpynW(out, base, cap) != nullptr;
 }
 
 // Per-app HDR/SDR overrides, read from a text file the user edits. Some apps
