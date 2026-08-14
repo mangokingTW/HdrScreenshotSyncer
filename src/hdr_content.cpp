@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <vector>
 
 using Microsoft::WRL::ComPtr;
@@ -112,7 +113,12 @@ void set_status(ScanDiag* diag, const wchar_t* status) {
 // Whether the window belongs to Snipping Tool. While it is foreground the user
 // is mid-capture and its translucent overlay isn't the content being shot, so we
 // must not re-evaluate off it -- we freeze the decision the real content set.
-bool is_snipping_tool(HWND hwnd) {
+// Foreground process image basename (e.g. "Discord.exe") into out. False if it
+// can't be read.
+bool foreground_exe(HWND hwnd, wchar_t* out, int cap) {
+    if (cap > 0) {
+        out[0] = L'\0';
+    }
     DWORD pid = 0;
     GetWindowThreadProcessId(hwnd, &pid);
     if (pid == 0) {
@@ -124,18 +130,133 @@ bool is_snipping_tool(HWND hwnd) {
     }
     wchar_t path[MAX_PATH];
     DWORD size = ARRAYSIZE(path);
-    bool match = false;
-    if (QueryFullProcessImageNameW(proc, 0, path, &size)) {
-        const wchar_t* base = path;
-        for (const wchar_t* p = path; *p; ++p) {
-            if (*p == L'\\' || *p == L'/') {
-                base = p + 1;
-            }
-        }
-        match = lstrcmpiW(base, L"SnippingTool.exe") == 0;
-    }
+    const bool ok = QueryFullProcessImageNameW(proc, 0, path, &size) != FALSE;
     CloseHandle(proc);
-    return match;
+    if (!ok) {
+        return false;
+    }
+    const wchar_t* base = path;
+    for (const wchar_t* p = path; *p; ++p) {
+        if (*p == L'\\' || *p == L'/') {
+            base = p + 1;
+        }
+    }
+    lstrcpynW(out, base, cap);
+    return true;
+}
+
+// Per-app HDR/SDR overrides, read from a text file the user edits. Some apps
+// need the corrector but produce no HDR/wide-gamut pixels (Discord, whose HDR
+// presentation isn't visible in the captured framebuffer), so pixel detection
+// can't reach them -- a process-name override is the only reliable signal.
+struct AppOverride {
+    std::wstring exe;
+    bool hdr;
+};
+std::vector<AppOverride> g_overrides;
+FILETIME g_overridesTime{};
+bool g_overridesChecked = false;
+
+std::wstring overrides_path() {
+    wchar_t base[MAX_PATH];
+    const DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", base, ARRAYSIZE(base));
+    if (n == 0 || n >= ARRAYSIZE(base)) {
+        return {};
+    }
+    return std::wstring(base) + L"\\HdrScreenshotSyncer\\overrides.txt";
+}
+
+void parse_overrides(const std::string& utf8) {
+    const int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()),
+                                         nullptr, 0);
+    std::wstring text(static_cast<size_t>(wlen), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, utf8.data(), static_cast<int>(utf8.size()), text.data(), wlen);
+
+    auto trim = [](std::wstring& s) {
+        auto sp = [](wchar_t c) { return c == L' ' || c == L'\t' || c == L'\r' || c == L'\n'; };
+        size_t a = 0;
+        size_t b = s.size();
+        while (a < b && sp(s[a])) {
+            ++a;
+        }
+        while (b > a && sp(s[b - 1])) {
+            --b;
+        }
+        s = s.substr(a, b - a);
+    };
+
+    size_t start = 0;
+    while (start <= text.size()) {
+        const size_t nl = text.find(L'\n', start);
+        std::wstring line = text.substr(start, nl == std::wstring::npos ? nl : nl - start);
+        start = nl == std::wstring::npos ? text.size() + 1 : nl + 1;
+        trim(line);
+        if (line.empty() || line[0] == L'#') {
+            continue;
+        }
+        const size_t eq = line.find(L'=');
+        if (eq == std::wstring::npos) {
+            continue;
+        }
+        std::wstring name = line.substr(0, eq);
+        std::wstring value = line.substr(eq + 1);
+        trim(name);
+        trim(value);
+        if (name.empty() || value.empty()) {
+            continue;
+        }
+        const wchar_t v = value[0];
+        if (v == L'h' || v == L'H') {
+            g_overrides.push_back({name, true});
+        } else if (v == L's' || v == L'S') {
+            g_overrides.push_back({name, false});
+        }
+    }
+}
+
+void reload_overrides_if_changed() {
+    const std::wstring path = overrides_path();
+    if (path.empty()) {
+        return;
+    }
+    WIN32_FILE_ATTRIBUTE_DATA fa{};
+    if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &fa)) {
+        g_overrides.clear();  // no file -> no overrides
+        g_overridesChecked = true;
+        g_overridesTime = FILETIME{};
+        return;
+    }
+    if (g_overridesChecked && CompareFileTime(&fa.ftLastWriteTime, &g_overridesTime) == 0) {
+        return;  // unchanged since last read
+    }
+    g_overridesChecked = true;
+    g_overridesTime = fa.ftLastWriteTime;
+    g_overrides.clear();
+
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        return;
+    }
+    LARGE_INTEGER sz{};
+    if (GetFileSizeEx(h, &sz) && sz.QuadPart > 0 && sz.QuadPart < (1 << 20)) {
+        std::string buf(static_cast<size_t>(sz.QuadPart), '\0');
+        DWORD read = 0;
+        if (ReadFile(h, buf.data(), static_cast<DWORD>(buf.size()), &read, nullptr)) {
+            buf.resize(read);
+            parse_overrides(buf);
+        }
+    }
+    CloseHandle(h);
+}
+
+std::optional<bool> override_for(const wchar_t* exe) {
+    for (const AppOverride& o : g_overrides) {
+        if (lstrcmpiW(o.exe.c_str(), exe) == 0) {
+            return o.hdr;
+        }
+    }
+    return std::nullopt;
 }
 
 // SDR white for the given display in scRGB units (1.0 == 80 nits). Falls back to
@@ -255,11 +376,26 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag, unsigned long acq
         return g_last;
     }
 
-    if (is_snipping_tool(fg)) {
+    wchar_t exe[MAX_PATH] = {};
+    const bool haveExe = foreground_exe(fg, exe, ARRAYSIZE(exe));
+
+    if (haveExe && lstrcmpiW(exe, L"SnippingTool.exe") == 0) {
         // Mid-capture: hold the last content decision so the corrector doesn't
         // flip based on Snipping Tool's own overlay right as the shot is taken.
         set_status(diag, L"snip-foreground");
         return g_last;
+    }
+
+    // A user override for this app wins over pixel detection: some apps need the
+    // corrector but produce no HDR/wide-gamut pixels to detect.
+    reload_overrides_if_changed();
+    if (haveExe) {
+        const std::optional<bool> forced = override_for(exe);
+        if (forced.has_value()) {
+            set_status(diag, forced.value() ? L"override-hdr" : L"override-sdr");
+            g_last = forced.value();
+            return forced.value();
+        }
     }
 
     MONITORINFOEXW mi{};
@@ -463,6 +599,38 @@ std::optional<bool> foreground_has_hdr_content(ScanDiag* diag, unsigned long acq
     }
     g_last = isHdr;
     return isHdr;
+}
+
+std::wstring overrides_file_path() {
+    return overrides_path();
+}
+
+void ensure_overrides_file() {
+    const std::wstring path = overrides_path();
+    if (path.empty() || GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) {
+        return;  // can't resolve, or already exists
+    }
+    const size_t slash = path.find_last_of(L'\\');
+    if (slash != std::wstring::npos) {
+        CreateDirectoryW(path.substr(0, slash).c_str(), nullptr);
+    }
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL,
+                           nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        return;
+    }
+    static const char kTemplate[] =
+        "# HdrScreenshotSyncer per-app overrides\r\n"
+        "# One rule per line:  <process.exe> = hdr | sdr\r\n"
+        "# Forces the corrector for that app, skipping pixel detection. Use it for\r\n"
+        "# apps that need the corrector but show no bright / wide-gamut pixels\r\n"
+        "# (e.g. Discord), or to force an app to SDR. Lines starting with # are ignored.\r\n"
+        "# Changes take effect within a few seconds; no restart needed.\r\n"
+        "#\r\n"
+        "# Discord.exe = hdr\r\n";
+    DWORD written = 0;
+    WriteFile(h, kTemplate, static_cast<DWORD>(sizeof(kTemplate) - 1), &written, nullptr);
+    CloseHandle(h);
 }
 
 } // namespace hdr

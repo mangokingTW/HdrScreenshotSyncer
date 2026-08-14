@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <string>
 
 namespace hdr {
 
@@ -33,5 +34,14 @@ struct ScanDiag {
 // larger value lets a worker thread sleep on screen updates instead of polling.
 std::optional<bool> foreground_has_hdr_content(ScanDiag* diag = nullptr,
                                                unsigned long acquireTimeoutMs = 100);
+
+// The per-app override file (%LOCALAPPDATA%\HdrScreenshotSyncer\overrides.txt);
+// empty if it can't be located. A process listed there (e.g. `Discord.exe = hdr`)
+// forces the corrector regardless of pixels -- the only reliable signal for apps
+// whose HDR presentation doesn't show up in the captured framebuffer.
+std::wstring overrides_file_path();
+
+// Create the override file with a commented template if it doesn't exist yet.
+void ensure_overrides_file();
 
 } // namespace hdr
