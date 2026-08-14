@@ -52,13 +52,11 @@ jobs:
             return $sha
           }
           $sha64 = Get-Sha 'x64\.zip'
-          $sha86 = Get-Sha 'x86\.zip'
-          Write-Host "version=$version x64=$sha64 x86=$sha86"
+          Write-Host "version=$version x64=$sha64"
 
           $dir = 'packaging/chocolatey'
           $install = "$dir/tools/chocolateyInstall.ps1"
           (Get-Content $install -Raw) `
-            -replace "(?m)^\s*checksum\s*=\s*'.*'",   "  checksum       = '$sha86'" `
             -replace "(?m)^\s*checksum64\s*=\s*'.*'", "  checksum64     = '$sha64'" |
             Set-Content $install -Encoding utf8
 
@@ -73,8 +71,6 @@ jobs:
             '',
             "  HdrScreenshotSyncer-$version-x64.zip",
             "  $($sha64.ToLower())",
-            "  HdrScreenshotSyncer-$version-x86.zip",
-            "  $($sha86.ToLower())",
             '',
             'Build provenance: gh attestation verify <file> --repo mangokingTW/HdrScreenshotSyncer',
             'MIT License: https://github.com/mangokingTW/HdrScreenshotSyncer/blob/main/LICENSE'

@@ -11,10 +11,6 @@
         "64bit": {
             "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.3/HdrScreenshotSyncer-0.2.3-x64.zip",
             "hash": "f10fffa197b9d30ad8655504e6b3447bf32698917c4997df53db925ef7984ed6"
-        },
-        "32bit": {
-            "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.3/HdrScreenshotSyncer-0.2.3-x86.zip",
-            "hash": "3f3d9fc76062acd2b04dbabc2fac833e1ed992c851e387dc62ecdd86083ea72f"
         }
     },
     "bin": "HdrScreenshotSyncer.exe",
@@ -29,12 +25,6 @@
         "architecture": {
             "64bit": {
                 "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v$version/HdrScreenshotSyncer-$version-x64.zip",
-                "hash": {
-                    "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v$version/SHA256SUMS.txt"
-                }
-            },
-            "32bit": {
-                "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v$version/HdrScreenshotSyncer-$version-x86.zip",
                 "hash": {
                     "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v$version/SHA256SUMS.txt"
                 }

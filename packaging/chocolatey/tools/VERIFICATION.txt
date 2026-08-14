@@ -11,9 +11,6 @@ published in that release's SHA256SUMS.txt:
   HdrScreenshotSyncer-0.1.0-x64.zip
   dab513e473fd532c3f10ce74b735b5e0bac5a45eda0dedd4ffaad1a7cb7a824a
 
-  HdrScreenshotSyncer-0.1.0-x86.zip
-  c0e7d8ef567463b6aedae3b075c7922634adb565c6a5a10774e748d62fa19a7d
-
 Every release also publishes build provenance, checkable with:
 
   gh attestation verify <file> --repo mangokingTW/HdrScreenshotSyncer
