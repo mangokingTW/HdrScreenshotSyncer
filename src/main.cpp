@@ -88,7 +88,9 @@ void set_tray_icon(bool add) {
         g_tray.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         g_tray.uCallbackMessage = WMAPP_TRAY;
         g_tray.hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APPICON));
-        lstrcpynW(g_tray.szTip, text::s().trayTip, ARRAYSIZE(g_tray.szTip));
+        if (!lstrcpynW(g_tray.szTip, text::s().trayTip, ARRAYSIZE(g_tray.szTip))) {
+            g_tray.szTip[0] = L'\0';
+        }
         Shell_NotifyIconW(NIM_ADD, &g_tray);
     } else {
         Shell_NotifyIconW(NIM_DELETE, &g_tray);
