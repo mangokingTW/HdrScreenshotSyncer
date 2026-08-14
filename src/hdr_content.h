@@ -12,6 +12,7 @@ struct ScanDiag {
     float sdrWhite = 0.0f;        // SDR white in scRGB (the reference the scan compares against)
     float threshold = 0.0f;       // brightness a pixel must exceed to count as HDR
     float maxChannel = 0.0f;      // brightest channel seen in the scanned region
+    float minChannel = 0.0f;      // most-negative channel seen (below 0 => outside sRGB / wide gamut)
     double hotFraction = 0.0;     // fraction of sampled pixels above the threshold
 };
 
