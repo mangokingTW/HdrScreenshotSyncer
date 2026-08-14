@@ -1,5 +1,5 @@
 {
-    "version": "0.2.2",
+    "version": "0.2.3",
     "description": "Keeps Snipping Tool's HDR screenshot color corrector in sync with the display's HDR state.",
     "homepage": "https://github.com/mangokingTW/HdrScreenshotSyncer",
     "license": "MIT",
@@ -9,12 +9,12 @@
     ],
     "architecture": {
         "64bit": {
-            "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.2/HdrScreenshotSyncer-0.2.2-x64.zip",
-            "hash": "1b40fc7797ddb1033c4fcd7a5934f320fd7ed0518e68f5e2f8ae93e2d8278aad"
+            "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.3/HdrScreenshotSyncer-0.2.3-x64.zip",
+            "hash": "f10fffa197b9d30ad8655504e6b3447bf32698917c4997df53db925ef7984ed6"
         },
         "32bit": {
-            "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.2/HdrScreenshotSyncer-0.2.2-x86.zip",
-            "hash": "bae858d5d757775322dd6007b1579403ad60cf3e78073ed3567a03d3c026c7e4"
+            "url": "https://github.com/mangokingTW/HdrScreenshotSyncer/releases/download/v0.2.3/HdrScreenshotSyncer-0.2.3-x86.zip",
+            "hash": "3f3d9fc76062acd2b04dbabc2fac833e1ed992c851e387dc62ecdd86083ea72f"
         }
     },
     "bin": "HdrScreenshotSyncer.exe",
