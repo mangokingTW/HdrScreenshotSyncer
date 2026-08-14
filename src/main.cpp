@@ -20,6 +20,7 @@ constexpr UINT ID_SYNC_NOW = 1002;
 constexpr UINT ID_AUTOSTART = 1003;
 constexpr UINT ID_EXIT = 1004;
 constexpr UINT ID_DIAGLOG = 1005;
+constexpr UINT ID_OVERRIDES = 1006;
 // How long a scan blocks waiting for the next desktop frame (so the worker
 // sleeps on screen updates), the minimum gap between scans while content keeps
 // changing (throttle for video), and how long to idle when there's nothing to
@@ -198,6 +199,7 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     AppendMenuW(menu, MF_STRING | (autostart::enabled() ? MF_CHECKED : MF_UNCHECKED),
                                 ID_AUTOSTART, L"Start at logon");
                 }
+                AppendMenuW(menu, MF_STRING, ID_OVERRIDES, L"Edit app overrides…");
                 AppendMenuW(menu, MF_STRING | (g_diagLog ? MF_CHECKED : MF_UNCHECKED),
                             ID_DIAGLOG, L"Write diagnostic log");
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
@@ -227,6 +229,14 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             g_diagLog = !g_diagLog.load();
             wake();  // log a line promptly
             return 0;
+        case ID_OVERRIDES: {
+            hdr::ensure_overrides_file();
+            const std::wstring path = hdr::overrides_file_path();
+            if (!path.empty()) {
+                ShellExecuteW(nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            }
+            return 0;
+        }
         case ID_EXIT:
             DestroyWindow(hwnd);
             return 0;
