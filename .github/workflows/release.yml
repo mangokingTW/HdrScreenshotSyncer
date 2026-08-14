@@ -67,10 +67,20 @@ jobs:
               -DestinationPath "dist/HdrScreenshotSyncer-$env:FILEVER-$arch.zip"
           }
 
+      - name: Build Store MSIX (unsigned)
+        shell: pwsh
+        run: |
+          # The unsigned package to upload to Partner Center -- the Store signs it
+          # on ingestion. build.ps1 locates makeappx in the Windows SDK. Named with
+          # the version so the maintainer grabs it straight from the release.
+          & packaging\msix\build.ps1
+          if ($LASTEXITCODE) { throw "MSIX packaging failed" }
+          Move-Item dist/HdrScreenshotSyncer.msix "dist/HdrScreenshotSyncer-$env:FILEVER.msix" -Force
+
       - name: Checksums
         shell: pwsh
         run: |
-          $lines = Get-FileHash dist/*.zip, dist/*.exe -Algorithm SHA256 |
+          $lines = Get-FileHash dist/*.zip, dist/*.exe, dist/*.msix -Algorithm SHA256 |
             ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" }
           $path = Join-Path $PWD 'dist/SHA256SUMS.txt'
           [System.IO.File]::WriteAllText($path, ($lines -join "`n") + "`n")
@@ -82,6 +92,7 @@ jobs:
           subject-path: |
             dist/*.zip
             dist/*.exe
+            dist/*.msix
             dist/SHA256SUMS.txt
 
       - name: Attach provenance to the release
