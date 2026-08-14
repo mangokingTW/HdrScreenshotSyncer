@@ -80,6 +80,9 @@ cmake --build build --config Release
 
 Produces `build/Release/HdrScreenshotSyncer.exe`.
 
+The release, packaging, and Microsoft Store publishing flow is documented in
+**[docs/PACKAGING.md](docs/PACKAGING.md)**.
+
 ## How the setting is stored
 
 Reverse-engineered from Process Monitor:

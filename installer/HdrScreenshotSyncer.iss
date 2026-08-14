@@ -1,7 +1,7 @@
 ; Inno Setup script for HdrScreenshotSyncer. One per-user installer (the tool
-; never needs elevation), carrying both architectures; the right one is chosen at
-; install time. Autostart is an opt-in task writing the same HKCU Run entry the
-; app's tray toggle manages.
+; never needs elevation), x64 only -- it refuses to run on 32-bit Windows.
+; Autostart is an opt-in task writing the same HKCU Run entry the app's tray
+; toggle manages.
 
 #define AppName "HdrScreenshotSyncer"
 #define AppExeName "HdrScreenshotSyncer.exe"
@@ -28,6 +28,7 @@ OutputBaseFilename={#AppName}-{#AppVersionFull}-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 VersionInfoVersion={#AppVersion}
 UninstallDisplayIcon={app}\{#AppExeName}
@@ -36,8 +37,7 @@ UninstallDisplayIcon={app}\{#AppExeName}
 Name: "startup"; Description: "Start automatically at logon"
 
 [Files]
-Source: "..\build-x64\Release\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion; Check: Is64BitInstallMode
-Source: "..\build-x86\Release\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion; Check: not Is64BitInstallMode
+Source: "..\build-x64\Release\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
