@@ -178,4 +178,5 @@ supersedes the pending one.
 
 ## See also
 
+- [`packaging/store/`](../packaging/store) — the Store listing copy (`listing.en-US.md`, `listing.zh-TW.md`) and `screenshots/`, kept under version control.
 - [`packaging/msix/README.md`](../packaging/msix/README.md) — building/side-loading the MSIX locally.
