@@ -34,6 +34,7 @@
 
   <Resources>
     <Resource Language="en-us" />
+    <Resource Language="zh-tw" />
   </Resources>
 
   <Applications>
