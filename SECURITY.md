@@ -12,7 +12,7 @@ The latest release is supported; fixes ship in a new release.
 
 ## Scope
 
-HdrScreenshotSyncer runs entirely locally: it reads the display's HDR state and
+HDR Screenshot Syncer runs entirely locally: it reads the display's HDR state and
 writes a single Snipping Tool setting. It makes no network connections, collects
 no data, and needs no elevation. Every release carries build provenance,
 verifiable with:
