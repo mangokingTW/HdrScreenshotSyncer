@@ -3,7 +3,10 @@
 ; Autostart is an opt-in task writing the same HKCU Run entry the app's tray
 ; toggle manages.
 
-#define AppName "HdrScreenshotSyncer"
+#define AppName "HDR Screenshot Syncer"
+; Unspaced slug for the setup filename, install folder, and the Run value name
+; (the last must match kValueName in src/autostart.cpp). Display uses AppName.
+#define AppSlug "HdrScreenshotSyncer"
 #define AppExeName "HdrScreenshotSyncer.exe"
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -19,12 +22,12 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=mangokingTW
 AppPublisherURL=https://github.com/mangokingTW/HdrScreenshotSyncer
-DefaultDirName={localappdata}\Programs\{#AppName}
+DefaultDirName={localappdata}\Programs\{#AppSlug}
 DefaultGroupName={#AppName}
 PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
 OutputDir=..\dist
-OutputBaseFilename={#AppName}-{#AppVersionFull}-setup
+OutputBaseFilename={#AppSlug}-{#AppVersionFull}-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -44,7 +47,7 @@ Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
 
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; \
-  ValueName: "{#AppName}"; ValueData: """{app}\{#AppExeName}"""; \
+  ValueName: "{#AppSlug}"; ValueData: """{app}\{#AppExeName}"""; \
   Flags: uninsdeletevalue; Tasks: startup
 
 [Run]
