@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(HdrScreenshotSyncer VERSION 1.0.0 LANGUAGES CXX)
+project(HdrScreenshotSyncer VERSION 1.0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -37,7 +37,7 @@ add_executable(HdrScreenshotSyncer WIN32
 
 target_link_libraries(HdrScreenshotSyncer PRIVATE user32 advapi32 shell32 comdlg32 d3d11 dxgi windowsapp)
 
-target_compile_definitions(HdrScreenshotSyncer PRIVATE UNICODE _UNICODE)
+target_compile_definitions(HdrScreenshotSyncer PRIVATE UNICODE _UNICODE APP_VERSION_STRING="${APP_VERSION}")
 
 if(MSVC)
     target_compile_options(HdrScreenshotSyncer PRIVATE /utf-8 /W4 /permissive-)

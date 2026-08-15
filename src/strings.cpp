@@ -13,6 +13,7 @@ const Strings kEn = {
     .menuOverrides = L"App overrides…",
     .menuDiagLog = L"Write diagnostic log",
     .menuExit = L"Exit",
+    .menuVersion = L"Version",
 
     .ovrCaption = L"App overrides",
     .ovrIntro = L"Force Snipping Tool's HDR corrector for specific apps, by process name:",
@@ -38,6 +39,7 @@ const Strings kZhTw = {
     .menuOverrides = L"應用程式覆寫…",
     .menuDiagLog = L"寫入診斷記錄",
     .menuExit = L"結束",
+    .menuVersion = L"版本",
 
     .ovrCaption = L"應用程式覆寫",
     .ovrIntro = L"依程式名稱，為特定應用程式"
