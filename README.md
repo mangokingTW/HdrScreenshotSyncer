@@ -70,7 +70,7 @@ plain SDR and correct.
 | **Scoop** | `scoop bucket add mango https://github.com/mangokingTW/scoop-bucket`<br>`scoop install mango/HdrScreenshotSyncer` |
 | **winget** | `winget install mangokingTW.HdrScreenshotSyncer` |
 | **Chocolatey** | `choco install hdrscreenshotsyncer` |
-| **Microsoft Store** | search for *HdrScreenshotSyncer* |
+| **Microsoft Store** | search for *HDR Screenshot Syncer* |
 
 Or download the installer / portable zip from
 [Releases](https://github.com/mangokingTW/HdrScreenshotSyncer/releases). Scoop is

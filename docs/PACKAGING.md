@@ -1,6 +1,6 @@
 # Packaging & Releasing
 
-How HdrScreenshotSyncer is built and published. Everything is driven by pushing a
+How HDR Screenshot Syncer is built and published. Everything is driven by pushing a
 `vX.Y.Z` tag — [`.github/workflows/release.yml`](../.github/workflows/release.yml)
 does the rest.
 

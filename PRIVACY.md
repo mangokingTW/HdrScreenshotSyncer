@@ -1,8 +1,8 @@
-# Privacy Policy — HdrScreenshotSyncer
+# Privacy Policy — HDR Screenshot Syncer
 
 _Last updated: 2026-08-12_
 
-HdrScreenshotSyncer does not collect, store, transmit, or share any personal data.
+HDR Screenshot Syncer does not collect, store, transmit, or share any personal data.
 
 - **No data collection.** The app does not gather any personal or usage information.
 - **No network connections.** The app makes no network requests and sends nothing off your device. It has no accounts, telemetry, analytics, or advertising.
@@ -15,11 +15,11 @@ Because no data leaves your device, there is nothing collected to access, correc
 
 ---
 
-# 隱私權原則 — HdrScreenshotSyncer
+# 隱私權原則 — HDR Screenshot Syncer
 
 _最後更新:2026-08-12_
 
-HdrScreenshotSyncer 不收集、儲存、傳輸或分享任何個人資料。
+HDR Screenshot Syncer 不收集、儲存、傳輸或分享任何個人資料。
 
 - **不收集資料。** 本應用程式不蒐集任何個人或使用資訊。
 - **無網路連線。** 本應用程式不發出任何網路要求,也不會將任何內容傳出你的裝置。沒有帳號、遙測、分析或廣告。
