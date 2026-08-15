@@ -10,10 +10,11 @@
 [![License: MIT](https://img.shields.io/github/license/mangokingTW/HdrScreenshotSyncer)](LICENSE)
 
 A small Windows tray tool that keeps Snipping Tool's **HDR screenshot color
-corrector** (`IsHDRToneMappingEnabled`) in sync with whether the display is
-currently in HDR — so native screenshots come out right without toggling the
-setting by hand. Windows switches HDR on and off per app, so you can't tell the
-current state; this follows it automatically.
+corrector** (`IsHDRToneMappingEnabled`) in sync with whether the foreground
+content is actually HDR, so screenshots come out with the right colors
+automatically. Windows has no per-app HDR API and the display flag doesn't change
+on a display left in HDR, so this detects HDR from the actual pixels of the
+foreground window and follows it for you.
 
 Usage guide (install, tray menu, App overrides) is in the
 **[wiki](https://github.com/mangokingTW/HdrScreenshotSyncer/wiki)**.
