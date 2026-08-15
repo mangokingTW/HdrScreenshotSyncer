@@ -44,7 +44,7 @@ BEGIN
             VALUE "FileVersion", "@APP_VERSION@.0"
             VALUE "InternalName", "HdrScreenshotSyncer"
             VALUE "OriginalFilename", "HdrScreenshotSyncer.exe"
-            VALUE "ProductName", "HdrScreenshotSyncer"
+            VALUE "ProductName", "HDR Screenshot Syncer"
             VALUE "ProductVersion", "@APP_VERSION@.0"
             VALUE "LegalCopyright", "Copyright (c) mangokingTW"
         END

@@ -23,7 +23,7 @@
     Version="0.2.6.0" />
 
   <Properties>
-    <DisplayName>HdrScreenshotSyncer</DisplayName>
+    <DisplayName>HDR Screenshot Syncer</DisplayName>
     <PublisherDisplayName>Mango Yen</PublisherDisplayName>
     <Logo>assets\StoreLogo.png</Logo>
   </Properties>
@@ -40,7 +40,7 @@
   <Applications>
     <Application Id="HdrScreenshotSyncer" Executable="HdrScreenshotSyncer.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="HdrScreenshotSyncer"
+        DisplayName="HDR Screenshot Syncer"
         Description="Keeps Snipping Tool's HDR screenshot color corrector in sync with the display's HDR state."
         BackgroundColor="transparent"
         Square150x150Logo="assets\Square150x150Logo.png"
@@ -54,7 +54,7 @@
         <!-- Autostart the packaged way; the user enables it in Settings > Startup.
              An HKCU Run key would be virtualized to no effect under MSIX. -->
         <uap5:Extension Category="windows.startupTask" Executable="HdrScreenshotSyncer.exe" EntryPoint="Windows.FullTrustApplication">
-          <uap5:StartupTask TaskId="HdrScreenshotSyncerStartup" Enabled="false" DisplayName="HdrScreenshotSyncer" />
+          <uap5:StartupTask TaskId="HdrScreenshotSyncerStartup" Enabled="false" DisplayName="HDR Screenshot Syncer" />
         </uap5:Extension>
       </Extensions>
     </Application>
