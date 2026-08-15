@@ -1,4 +1,4 @@
-# HdrScreenshotSyncer
+# HDR Screenshot Syncer
 
 [![Get it from Microsoft Store](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NS238QVJ9CS)
 
