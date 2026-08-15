@@ -1,5 +1,7 @@
 # HdrScreenshotSyncer
 
+[![Get it from Microsoft Store](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NS238QVJ9CS)
+
 [![Windows build](https://github.com/mangokingTW/HdrScreenshotSyncer/actions/workflows/windows-build.yml/badge.svg)](https://github.com/mangokingTW/HdrScreenshotSyncer/actions/workflows/windows-build.yml)
 [![CodeQL](https://github.com/mangokingTW/HdrScreenshotSyncer/actions/workflows/codeql.yml/badge.svg)](https://github.com/mangokingTW/HdrScreenshotSyncer/actions/workflows/codeql.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/mangokingTW/HdrScreenshotSyncer/badge)](https://scorecard.dev/viewer/?uri=github.com/mangokingTW/HdrScreenshotSyncer)
