@@ -199,12 +199,8 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 AppendMenuW(menu, MF_STRING | (g_enabled ? MF_CHECKED : MF_UNCHECKED),
                             ID_ENABLED, t.menuEnabled);
                 AppendMenuW(menu, MF_STRING, ID_SYNC_NOW, t.menuSyncNow);
-                if (!autostart::packaged()) {
-                    // Hidden in the MSIX build: autostart there is the package's
-                    // StartupTask, managed in Windows Settings > Startup.
-                    AppendMenuW(menu, MF_STRING | (autostart::enabled() ? MF_CHECKED : MF_UNCHECKED),
-                                ID_AUTOSTART, t.menuStartLogon);
-                }
+                AppendMenuW(menu, MF_STRING | (autostart::enabled() ? MF_CHECKED : MF_UNCHECKED),
+                            ID_AUTOSTART, t.menuStartLogon);
                 AppendMenuW(menu, MF_STRING, ID_OVERRIDES, t.menuOverrides);
                 AppendMenuW(menu, MF_STRING | (g_diagLog ? MF_CHECKED : MF_UNCHECKED),
                             ID_DIAGLOG, t.menuDiagLog);
@@ -229,7 +225,12 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             wake();
             return 0;
         case ID_AUTOSTART:
-            autostart::set_enabled(!autostart::enabled());
+            if (autostart::packaged()) {
+                // MSIX build: the StartupTask is toggled in Windows Settings.
+                autostart::open_startup_settings();
+            } else {
+                autostart::set_enabled(!autostart::enabled());
+            }
             return 0;
         case ID_DIAGLOG:
             g_diagLog = !g_diagLog.load();

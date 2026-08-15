@@ -12,9 +12,13 @@ bool enabled();
 bool set_enabled(bool on);
 
 // Whether this process runs from an MSIX package (the Store build). There the Run
-// key is virtualized to no effect; autostart is the package's StartupTask, managed
-// in Windows Settings > Startup, so the tray toggle is hidden and this module's
-// Run-key calls are inert.
+// key is virtualized to no effect; autostart is the package's StartupTask.
+// enabled() reads its state; the tray "Start at logon" item opens Windows
+// Settings (below) to toggle it, since the WinRT enable/disable API faults.
 bool packaged();
+
+// Opens Windows Settings > Startup apps. The MSIX build's tray "Start at logon"
+// opens this rather than toggling the StartupTask from code.
+void open_startup_settings();
 
 } // namespace autostart

@@ -3,8 +3,13 @@
 #include <windows.h>
 
 #include <appmodel.h>
+#include <shellapi.h>
+
+#include <winrt/Windows.ApplicationModel.h>
+#include <winrt/Windows.Foundation.h>
 
 #include <string>
+#include <thread>
 
 namespace autostart {
 namespace {
@@ -56,6 +61,41 @@ std::wstring read_value() {
     return value;
 }
 
+// Runs `work` on a dedicated multithreaded-apartment thread and waits for it.
+// The package StartupTask's WinRT calls must not run on the tray's
+// single-threaded apartment -- doing so faults in combase.dll -- so a
+// short-lived MTA thread runs them instead; the UI STA is left untouched.
+template <typename F>
+void run_on_mta(F&& work) {
+    std::thread worker([&] {
+        if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED))) {
+            return;
+        }
+        try {
+            work();
+        } catch (...) {
+        }
+        CoUninitialize();
+    });
+    worker.join();
+}
+
+// Matches the uap5:StartupTask TaskId in packaging/msix/AppxManifest.xml.
+constexpr wchar_t kStartupTaskId[] = L"HdrScreenshotSyncerStartup";
+
+// Reads the package StartupTask state (MSIX build): enabled if on, false on any
+// failure so it never throws out of a menu handler.
+bool startup_task_enabled() {
+    bool result = false;
+    run_on_mta([&result] {
+        using namespace winrt::Windows::ApplicationModel;
+        const StartupTask task = StartupTask::GetAsync(kStartupTaskId).get();
+        const StartupTaskState state = task.State();
+        result = state == StartupTaskState::Enabled || state == StartupTaskState::EnabledByPolicy;
+    });
+    return result;
+}
+
 } // namespace
 
 bool packaged() {
@@ -68,7 +108,7 @@ bool packaged() {
 
 bool enabled() {
     if (packaged()) {
-        return false; // Run key is virtualized under MSIX; use the StartupTask.
+        return startup_task_enabled(); // MSIX build: read the package StartupTask.
     }
     const std::wstring expected = launch_command();
     const std::wstring actual = read_value();
@@ -80,7 +120,9 @@ bool enabled() {
 
 bool set_enabled(bool on) {
     if (packaged()) {
-        return false; // managed by the StartupTask (Windows Settings), not here
+        // MSIX build: the StartupTask is toggled in Windows Settings (the tray
+        // menu opens it), not from code. Reached only defensively.
+        return false;
     }
     if (!on) {
         const LSTATUS status = RegDeleteKeyValueW(HKEY_CURRENT_USER, kRunKey, kValueName);
@@ -102,6 +144,10 @@ bool set_enabled(bool on) {
                                           reinterpret_cast<const BYTE*>(command.c_str()), bytes);
     RegCloseKey(key);
     return status == ERROR_SUCCESS;
+}
+
+void open_startup_settings() {
+    ShellExecuteW(nullptr, L"open", L"ms-settings:startupapps", nullptr, nullptr, SW_SHOWNORMAL);
 }
 
 } // namespace autostart
