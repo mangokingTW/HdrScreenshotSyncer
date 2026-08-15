@@ -37,7 +37,22 @@ jobs:
           "FILEVER=$full"          | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
           "PRERELEASE=$prerelease" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
 
+      # When the tag's release already exists (a re-dispatch to retry the Store
+      # submit), skip the whole build and reuse the published MSIX -- only the
+      # Store step needs it.
+      - name: Check for existing release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view $env:TAG *> $null
+          $exists = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          "RELEASE_EXISTS=$($exists.ToString().ToLower())" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          Write-Host "release $env:TAG exists: $exists"
+
       - name: Build
+        if: env.RELEASE_EXISTS != 'true'
         shell: pwsh
         run: |
           cmake -S . -B build-x64 -A x64
@@ -46,6 +61,7 @@ jobs:
           if ($LASTEXITCODE) { throw "build x64 failed" }
 
       - name: Build installer
+        if: env.RELEASE_EXISTS != 'true'
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
@@ -53,6 +69,7 @@ jobs:
           if ($LASTEXITCODE) { throw "installer failed to compile" }
 
       - name: Package portable archives
+        if: env.RELEASE_EXISTS != 'true'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
@@ -63,6 +80,7 @@ jobs:
           }
 
       - name: Build Store MSIX (unsigned)
+        if: env.RELEASE_EXISTS != 'true'
         shell: pwsh
         run: |
           # The unsigned package to upload to Partner Center -- the Store signs it
@@ -73,6 +91,7 @@ jobs:
           Move-Item dist/HdrScreenshotSyncer.msix "dist/HdrScreenshotSyncer-$env:FILEVER.msix" -Force
 
       - name: Checksums
+        if: env.RELEASE_EXISTS != 'true'
         shell: pwsh
         run: |
           $lines = Get-FileHash dist/*.zip, dist/*.exe, dist/*.msix -Algorithm SHA256 |
@@ -82,6 +101,7 @@ jobs:
 
       - name: Attest build provenance
         id: attest
+        if: env.RELEASE_EXISTS != 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-path: |
@@ -91,8 +111,21 @@ jobs:
             dist/SHA256SUMS.txt
 
       - name: Attach provenance to the release
+        if: env.RELEASE_EXISTS != 'true'
         shell: pwsh
         run: Copy-Item "${{ steps.attest.outputs.bundle-path }}" dist/multiple.intoto.jsonl
+
+      - name: Download MSIX from the existing release
+        if: env.RELEASE_EXISTS == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Re-dispatch retry: the build was skipped, so pull the already-published
+          # MSIX for the Store step to resubmit.
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          gh release download $env:TAG --pattern '*.msix' --dir dist
+          if ($LASTEXITCODE) { throw 'failed to download the release MSIX' }
 
       - name: Create release
         shell: pwsh
@@ -192,7 +225,7 @@ jobs:
         # msstore's commit has been seen to hang at "CommitStarted"
         # (microsoft/msstore-cli#29); bound it so a hang fails the step instead
         # of running out the job's default timeout.
-        timeout-minutes: 30
+        timeout-minutes: 45
         env:
           TENANT: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
           SELLERID: ${{ secrets.PARTNER_CENTER_SELLER_ID }}
@@ -256,6 +289,30 @@ jobs:
 
             msstore submission publish $storeId
             if ($LASTEXITCODE) { throw 'msstore submission publish (commit) failed' }
+
+            # `submission publish` returns at CommitStarted -- the commit is still
+            # processing, so Partner Center doesn't yet show the submission as
+            # submitted. Wait until it leaves CommitStarted (i.e. the commit
+            # finished and it's in certification). Bounded, since full
+            # certification takes far longer; `msstore submission poll` would wait
+            # for full publication.
+            $committed = $false
+            for ($i = 0; $i -lt 50; $i++) {
+              Start-Sleep -Seconds 30
+              $status = ((msstore submission status $storeId) -join ' ')
+              $global:LASTEXITCODE = 0
+              Write-Host "poll ${i}: $status"
+              if ($status -match 'CommitFailed|CertificationFailed|PreProcessingFailed') {
+                throw "submission failed: $status"
+              }
+              if ($status -match 'Submission Status' -and $status -notmatch 'CommitStarted|PendingCommit') {
+                $committed = $true
+                break
+              }
+            }
+            if (-not $committed) {
+              Write-Host 'still committing after the wait; the submission is in progress server-side'
+            }
           } else {
             # No curated notes for this tag: package-only publish (commits).
             msstore publish $msix -id $storeId
