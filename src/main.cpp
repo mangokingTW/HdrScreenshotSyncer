@@ -196,10 +196,11 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             HMENU menu = CreatePopupMenu();
             if (menu) {
                 const text::Strings& t = text::s();
-                // A non-clickable header naming the app and its version, so the
-                // running build is identifiable straight from the tray.
-                AppendMenuW(menu, MF_STRING | MF_GRAYED, 0,
-                            L"HDR Screenshot Syncer  v" APP_VERSION_STRING);
+                // A non-clickable header showing the running version, so the
+                // build is identifiable straight from the tray.
+                const std::wstring versionLabel =
+                    std::wstring(t.menuVersion) + L" " APP_VERSION_STRING;
+                AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, versionLabel.c_str());
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
                 AppendMenuW(menu, MF_STRING | (g_enabled ? MF_CHECKED : MF_UNCHECKED),
                             ID_ENABLED, t.menuEnabled);

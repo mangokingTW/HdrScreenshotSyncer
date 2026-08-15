@@ -12,6 +12,7 @@ struct Strings {
     const wchar_t* menuOverrides;
     const wchar_t* menuDiagLog;
     const wchar_t* menuExit;
+    const wchar_t* menuVersion;       // "Version" / "版本"; the number is appended
 
     const wchar_t* ovrCaption;
     const wchar_t* ovrIntro;
