@@ -75,6 +75,11 @@ void run_on_mta(F&& work) {
             work();
         } catch (...) {
         }
+        // Release C++/WinRT's cached activation factories before tearing the
+        // apartment down. The cache is process-wide; without this, the per-call
+        // CoUninitialize leaves a dangling factory pointer and the next call
+        // faults in combase.dll (0xc0000005).
+        winrt::clear_factory_cache();
         CoUninitialize();
     });
     worker.join();
