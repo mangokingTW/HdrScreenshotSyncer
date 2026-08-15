@@ -7,14 +7,14 @@ release note reads as a finished, formatted note rather than a raw changelog.
 Keep each section to what changed; the boilerplate is added automatically. If a
 tag has no section here, the workflow falls back to auto-generated notes.
 
-## v0.2.7
+## v1.0.0
 
-The Microsoft Store build now shows the "Start at logon" tray option — it opens
+First stable 1.0 release. The Microsoft Store build now shows the "Start at logon" tray option — it opens
 Windows Settings > Startup apps to turn it on or off (the check mark reflects the
 current state). The app is also named "HDR Screenshot Syncer" consistently (Store,
 Start menu, Task Manager), and a crash when reading the autostart state is fixed.
 
-繁體中文:Microsoft Store 版現在會顯示「開機時啟動」托盤選項——點了會開「Windows 設定 → 啟動應用程式」讓你開關(打勾會反映目前狀態)。App 在商店、開始功能表、工作管理員的名稱統一為「HDR Screenshot Syncer」,並修正讀取開機啟動狀態時可能 crash 的問題。
+繁體中文:首個 1.0 正式版。Microsoft Store 版現在會顯示「開機時啟動」托盤選項——點了會開「Windows 設定 → 啟動應用程式」讓你開關(打勾會反映目前狀態)。App 在商店、開始功能表、工作管理員的名稱統一為「HDR Screenshot Syncer」,並修正讀取開機啟動狀態時可能 crash 的問題。
 
 ## v0.2.6
 
