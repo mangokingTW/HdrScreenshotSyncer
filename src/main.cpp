@@ -208,11 +208,12 @@ bool evaluate_and_apply() {
         // window they are near-constant so write_once still dedupes to a line or
         // two rather than one per scan.
         diag::write_once(L"fg=\"%s\" | display_hdr=%d | status=%s | "
-                         L"max=%d.%02d thr=%d.%02d hot=%d.%03d%% | decided=%d want=%s | no change",
+                         L"max=%d.%02d thr=%d.%02d min=-%d.%03d hot=%d.%03d%% | decided=%d want=%s | no change",
                          title, displayHdr ? 1 : 0,
                          (diag.status && *diag.status) ? diag.status : L"-",
                          static_cast<int>(diag.maxChannel), static_cast<int>(diag.maxChannel * 100) % 100,
                          static_cast<int>(diag.threshold), static_cast<int>(diag.threshold * 100) % 100,
+                         static_cast<int>(-diag.minChannel), static_cast<int>(-diag.minChannel * 1000) % 1000,
                          static_cast<int>(diag.hotFraction * 100), static_cast<int>(diag.hotFraction * 100000) % 1000,
                          decided ? 1 : 0, want ? L"HDR" : L"SDR");
     }
