@@ -17,6 +17,10 @@ namespace {
 // Mirrors the list box so Remove can map a selection back to a rule.
 std::vector<hdr::AppRule> g_rules;
 
+// The last external foreground app, offered by the "Use last app" button. Set by
+// show() before the modal dialog opens; the dialog runs on one thread.
+std::wstring g_lastApp;
+
 void populate(HWND dlg) {
     g_rules = hdr::list_overrides();
     HWND list = GetDlgItem(dlg, IDC_OVR_LIST);
@@ -100,8 +104,11 @@ INT_PTR CALLBACK dlg_proc(HWND dlg, UINT msg, WPARAM wParam, LPARAM) {
         SetDlgItemTextW(dlg, IDC_OVR_SDR, t.ovrSdr);
         SetDlgItemTextW(dlg, IDC_OVR_ADD, t.ovrAdd);
         SetDlgItemTextW(dlg, IDC_OVR_REMOVE, t.ovrRemove);
+        SetDlgItemTextW(dlg, IDC_OVR_USELAST, t.ovrUseLast);
         SetDlgItemTextW(dlg, IDCANCEL, t.ovrClose);
         SetDlgItemTextW(dlg, IDC_OVR_TIP, t.ovrTip);
+        // No last app seen yet: nothing to fill in.
+        EnableWindow(GetDlgItem(dlg, IDC_OVR_USELAST), !g_lastApp.empty());
         CheckRadioButton(dlg, IDC_OVR_HDR, IDC_OVR_SDR, IDC_OVR_HDR);
         populate(dlg);
         return TRUE;
@@ -111,6 +118,11 @@ INT_PTR CALLBACK dlg_proc(HWND dlg, UINT msg, WPARAM wParam, LPARAM) {
         switch (LOWORD(wParam)) {
         case IDC_OVR_BROWSE:
             browse(dlg);
+            return TRUE;
+        case IDC_OVR_USELAST:
+            if (!g_lastApp.empty()) {
+                SetDlgItemTextW(dlg, IDC_OVR_EXE, g_lastApp.c_str());
+            }
             return TRUE;
         case IDC_OVR_ADD:
             add_or_update(dlg);
@@ -136,7 +148,8 @@ INT_PTR CALLBACK dlg_proc(HWND dlg, UINT msg, WPARAM wParam, LPARAM) {
 
 }  // namespace
 
-void show(HINSTANCE instance, HWND owner) {
+void show(HINSTANCE instance, HWND owner, const std::wstring& lastApp) {
+    g_lastApp = lastApp;
     DialogBoxParamW(instance, MAKEINTRESOURCEW(IDD_OVERRIDES), owner, dlg_proc, 0);
 }
 

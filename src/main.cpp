@@ -7,6 +7,7 @@
 #include <string>
 
 #include "autostart.h"
+#include "diagnostic.h"
 #include "hdr.h"
 #include "hdr_content.h"
 #include "overrides_dialog.h"
@@ -21,8 +22,11 @@ constexpr UINT ID_ENABLED = 1001;
 constexpr UINT ID_SYNC_NOW = 1002;
 constexpr UINT ID_AUTOSTART = 1003;
 constexpr UINT ID_EXIT = 1004;
-constexpr UINT ID_DIAGLOG = 1005;
+constexpr UINT ID_OPENLOG = 1005;
 constexpr UINT ID_OVERRIDES = 1006;
+constexpr UINT ID_STATE_AUTO = 1007;
+constexpr UINT ID_STATE_HDR = 1008;
+constexpr UINT ID_STATE_SDR = 1009;
 // How long a scan blocks waiting for the next desktop frame (so the worker
 // sleeps on screen updates), the minimum gap between scans while content keeps
 // changing (throttle for video), and how long to idle when there's nothing to
@@ -40,12 +44,19 @@ HWND g_hwnd{};
 HINSTANCE g_instance{};
 NOTIFYICONDATAW g_tray{};
 std::atomic<bool> g_enabled{true};
-std::atomic<bool> g_diagLog{false};
+// Correction-state override: 0 = automatic detection, 1 = force HDR (corrector
+// on), 2 = force SDR (corrector off).
+std::atomic<int> g_force{0};
 std::atomic<bool> g_running{true};
 HANDLE g_singleInstance{};
 HANDLE g_wake{};              // signalled to nudge the worker out of its wait
 HANDLE g_worker{};
 HWINEVENTHOOK g_foregroundHook{};
+
+// Executable base name of the last external foreground window, offered to the
+// overrides dialog's "Use last app" button. Touched only on the UI thread (the
+// OUTOFCONTEXT hook callback and the menu handler), so it needs no lock.
+std::wstring g_lastForegroundExe;
 
 // Nudge the worker to re-evaluate now. Safe before the event exists / if it
 // failed to create.
@@ -55,29 +66,35 @@ void wake() {
     }
 }
 
-// Appends one UTF-8 line to %TEMP%\HdrScreenshotSyncer-diag.log for tuning the
-// content scan. Only called while the diagnostic toggle is on.
-void diag_log(const wchar_t* line) {
+// Base executable name (e.g. "notepad.exe") of a window's process, or empty for
+// our own process / on failure. Used to record the last external foreground app.
+std::wstring foreground_exe(HWND hwnd) {
+    if (!hwnd) {
+        return {};
+    }
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid == 0 || pid == GetCurrentProcessId()) {
+        return {};
+    }
+    HANDLE proc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!proc) {
+        return {};
+    }
     wchar_t path[MAX_PATH]{};
-    const DWORD n = GetTempPathW(MAX_PATH, path);
-    if (n == 0 || n > MAX_PATH) {
-        return;
+    DWORD size = ARRAYSIZE(path);
+    const bool ok = QueryFullProcessImageNameW(proc, 0, path, &size) != FALSE;
+    CloseHandle(proc);
+    if (!ok) {
+        return {};
     }
-    lstrcatW(path, L"HdrScreenshotSyncer-diag.log");
-    HANDLE h = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE) {
-        return;
+    const wchar_t* base = path;
+    for (const wchar_t* p = path; *p; ++p) {
+        if (*p == L'\\' || *p == L'/') {
+            base = p + 1;
+        }
     }
-    const int len = WideCharToMultiByte(CP_UTF8, 0, line, -1, nullptr, 0, nullptr, nullptr);
-    if (len > 1) {
-        std::string buf(static_cast<size_t>(len - 1), '\0');
-        WideCharToMultiByte(CP_UTF8, 0, line, -1, buf.data(), len, nullptr, nullptr);
-        buf += "\r\n";
-        DWORD written = 0;
-        WriteFile(h, buf.data(), static_cast<DWORD>(buf.size()), &written, nullptr);
-    }
-    CloseHandle(h);
+    return base;
 }
 
 void set_tray_icon(bool add) {
@@ -110,13 +127,36 @@ void set_tray_icon(bool add) {
 // itself. The scan blocks up to kAcquireMs waiting for a desktop frame, so a
 // static screen costs nothing beyond that kernel wait.
 bool evaluate_and_apply() {
+    const int force = g_force.load();
+    const bool displayHdr = hdr::any_display_on();
+
+    // Manual override: apply the forced state and skip detection entirely. Still
+    // reports whether a display is in HDR so the worker paces itself the same way.
+    if (force != 0) {
+        const bool want = (force == 1);
+        bool wrote = false;
+        const std::optional<bool> current = snip::read();
+        if (!current.has_value() || current.value() != want) {
+            snip::write(want);
+            wrote = true;
+        }
+        if (wrote) {
+            diag::write(L"forced=%s | display_hdr=%d | wrote=1", want ? L"HDR" : L"SDR",
+                        displayHdr ? 1 : 0);
+        } else {
+            // Steady state under a manual override: log once per distinct state.
+            diag::write_once(L"forced=%s | display_hdr=%d | steady", want ? L"HDR" : L"SDR",
+                             displayHdr ? 1 : 0);
+        }
+        return displayHdr;
+    }
+
     bool want = false;
     bool decided = true;
-    const bool displayHdr = hdr::any_display_on();
     hdr::ScanDiag diag;
     if (displayHdr) {
         const std::optional<bool> content =
-            hdr::foreground_has_hdr_content(g_diagLog.load() ? &diag : nullptr, kAcquireMs);
+            hdr::foreground_has_hdr_content(&diag, kAcquireMs);
         if (content.has_value()) {
             want = content.value();
         } else {
@@ -133,31 +173,34 @@ bool evaluate_and_apply() {
         }
     }
 
-    if (g_diagLog.load()) {
-        wchar_t title[128]{};
-        GetWindowTextW(GetForegroundWindow(), title, ARRAYSIZE(title));
-        SYSTEMTIME st{};
-        GetLocalTime(&st);
+    // Event-driven logging, like the IME tool: a real transition is logged in
+    // full every time (the interesting moment, with the measurements that explain
+    // it), while a steady state is logged once per distinct (app, outcome) via
+    // write_once. The scan measurements fluctuate every frame, so they are left
+    // out of the steady-state line -- included, write_once would never dedupe and
+    // the log would fill with near-identical repeats. diag:: prepends timestamps.
+    wchar_t title[128]{};
+    GetWindowTextW(GetForegroundWindow(), title, ARRAYSIZE(title));
+    if (wrote) {
         wchar_t line[600];
         wsprintfW(line,
-                  L"%04d-%02d-%02d %02d:%02d:%02d | fg=\"%s\" | display_hdr=%d | status=%s hr=0x%08x "
+                  L"fg=\"%s\" | display_hdr=%d | status=%s hr=0x%08x "
                   L"white=%d.%02d thr=%d.%02d max=%d.%02d min=-%d.%03d hot=%d.%03d%% | "
-                  L"decided=%d want=%s wrote=%d",
-                  st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, title,
-                  displayHdr ? 1 : 0, (diag.status && *diag.status) ? diag.status : L"-",
+                  L"decided=%d want=%s wrote=1",
+                  title, displayHdr ? 1 : 0, (diag.status && *diag.status) ? diag.status : L"-",
                   static_cast<unsigned int>(diag.hr),
-                  static_cast<int>(diag.sdrWhite),
-                  static_cast<int>(diag.sdrWhite * 100) % 100,
-                  static_cast<int>(diag.threshold),
-                  static_cast<int>(diag.threshold * 100) % 100,
-                  static_cast<int>(diag.maxChannel),
-                  static_cast<int>(diag.maxChannel * 100) % 100,
-                  static_cast<int>(-diag.minChannel),
-                  static_cast<int>(-diag.minChannel * 1000) % 1000,
-                  static_cast<int>(diag.hotFraction * 100),
-                  static_cast<int>(diag.hotFraction * 100000) % 1000, decided ? 1 : 0,
-                  want ? L"HDR" : L"SDR", wrote ? 1 : 0);
-        diag_log(line);
+                  static_cast<int>(diag.sdrWhite), static_cast<int>(diag.sdrWhite * 100) % 100,
+                  static_cast<int>(diag.threshold), static_cast<int>(diag.threshold * 100) % 100,
+                  static_cast<int>(diag.maxChannel), static_cast<int>(diag.maxChannel * 100) % 100,
+                  static_cast<int>(-diag.minChannel), static_cast<int>(-diag.minChannel * 1000) % 1000,
+                  static_cast<int>(diag.hotFraction * 100), static_cast<int>(diag.hotFraction * 100000) % 1000,
+                  decided ? 1 : 0, want ? L"HDR" : L"SDR");
+        diag::write(L"%s", line);
+    } else {
+        diag::write_once(L"fg=\"%s\" | display_hdr=%d | status=%s | decided=%d want=%s | no change",
+                         title, displayHdr ? 1 : 0,
+                         (diag.status && *diag.status) ? diag.status : L"-",
+                         decided ? 1 : 0, want ? L"HDR" : L"SDR");
     }
     return displayHdr;
 }
@@ -181,7 +224,13 @@ DWORD WINAPI worker_proc(LPVOID) {
     return 0;
 }
 
-void CALLBACK on_foreground_changed(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) {
+void CALLBACK on_foreground_changed(HWINEVENTHOOK, DWORD, HWND hwnd, LONG, LONG, DWORD, DWORD) {
+    // Remember the last external app for the overrides dialog's "Use last app".
+    // This OUTOFCONTEXT callback runs on the UI thread, so no lock is needed.
+    std::wstring exe = foreground_exe(hwnd);
+    if (!exe.empty()) {
+        g_lastForegroundExe = std::move(exe);
+    }
     wake();  // re-evaluate promptly when the user switches apps
 }
 
@@ -205,11 +254,28 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 AppendMenuW(menu, MF_STRING | (g_enabled ? MF_CHECKED : MF_UNCHECKED),
                             ID_ENABLED, t.menuEnabled);
                 AppendMenuW(menu, MF_STRING, ID_SYNC_NOW, t.menuSyncNow);
+
+                // Correction-state submenu: follow automatic detection, or force
+                // the corrector on (HDR) / off (SDR).
+                const int force = g_force.load();
+                HMENU stateMenu = CreatePopupMenu();
+                if (stateMenu) {
+                    AppendMenuW(stateMenu, MF_STRING | (force == 0 ? MF_CHECKED : 0u),
+                                ID_STATE_AUTO, t.stateAuto);
+                    AppendMenuW(stateMenu, MF_STRING | (force == 1 ? MF_CHECKED : 0u),
+                                ID_STATE_HDR, t.stateHdr);
+                    AppendMenuW(stateMenu, MF_STRING | (force == 2 ? MF_CHECKED : 0u),
+                                ID_STATE_SDR, t.stateSdr);
+                    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(stateMenu),
+                                t.menuState);
+                }
+
                 AppendMenuW(menu, MF_STRING | (autostart::enabled() ? MF_CHECKED : MF_UNCHECKED),
                             ID_AUTOSTART, t.menuStartLogon);
                 AppendMenuW(menu, MF_STRING, ID_OVERRIDES, t.menuOverrides);
-                AppendMenuW(menu, MF_STRING | (g_diagLog ? MF_CHECKED : MF_UNCHECKED),
-                            ID_DIAGLOG, t.menuDiagLog);
+                if (!diag::path().empty()) {
+                    AppendMenuW(menu, MF_STRING, ID_OPENLOG, t.menuOpenLog);
+                }
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
                 AppendMenuW(menu, MF_STRING, ID_EXIT, t.menuExit);
                 POINT pt{};
@@ -238,12 +304,27 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 autostart::set_enabled(!autostart::enabled());
             }
             return 0;
-        case ID_DIAGLOG:
-            g_diagLog = !g_diagLog.load();
-            wake();  // log a line promptly
+        case ID_OPENLOG: {
+            const std::wstring log = diag::path();
+            if (!log.empty()) {
+                ShellExecuteW(nullptr, L"open", log.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            }
+            return 0;
+        }
+        case ID_STATE_AUTO:
+            g_force = 0;
+            wake();
+            return 0;
+        case ID_STATE_HDR:
+            g_force = 1;
+            wake();
+            return 0;
+        case ID_STATE_SDR:
+            g_force = 2;
+            wake();
             return 0;
         case ID_OVERRIDES:
-            overrides::show(g_instance, hwnd);
+            overrides::show(g_instance, hwnd, g_lastForegroundExe);
             return 0;
         case ID_EXIT:
             DestroyWindow(hwnd);
@@ -277,6 +358,9 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ PWSTR, _In
         return 0;
     }
 
+    diag::initialise();
+    diag::write(L"---- started, version %hs", APP_VERSION_STRING);
+
     WNDCLASSW wc{};
     wc.lpfnWndProc = wnd_proc;
     wc.hInstance = instance;
@@ -293,6 +377,9 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ PWSTR, _In
     }
 
     set_tray_icon(true);
+
+    // Seed the "last app" with whatever is already in front at startup.
+    g_lastForegroundExe = foreground_exe(GetForegroundWindow());
 
     // Drive the sync from a worker thread that sleeps on desktop-frame updates,
     // nudged by the wake event on app switches / display changes / menu actions.
@@ -320,5 +407,6 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE, _In_ PWSTR, _In
     if (g_wake) {
         CloseHandle(g_wake);
     }
+    diag::shutdown();
     return 0;
 }
