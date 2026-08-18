@@ -140,8 +140,14 @@ bool evaluate_and_apply() {
             snip::write(want);
             wrote = true;
         }
-        diag::write(L"forced=%s | display_hdr=%d | wrote=%d", want ? L"HDR" : L"SDR",
-                    displayHdr ? 1 : 0, wrote ? 1 : 0);
+        if (wrote) {
+            diag::write(L"forced=%s | display_hdr=%d | wrote=1", want ? L"HDR" : L"SDR",
+                        displayHdr ? 1 : 0);
+        } else {
+            // Steady state under a manual override: log once per distinct state.
+            diag::write_once(L"forced=%s | display_hdr=%d | steady", want ? L"HDR" : L"SDR",
+                             displayHdr ? 1 : 0);
+        }
         return displayHdr;
     }
 
@@ -167,25 +173,35 @@ bool evaluate_and_apply() {
         }
     }
 
-    // Always logged: the log is size-capped and rotates, and the scan detail is
-    // what makes the corrector's decisions diagnosable after the fact. diag::
-    // prepends its own timestamp.
+    // Event-driven logging, like the IME tool: a real transition is logged in
+    // full every time (the interesting moment, with the measurements that explain
+    // it), while a steady state is logged once per distinct (app, outcome) via
+    // write_once. The scan measurements fluctuate every frame, so they are left
+    // out of the steady-state line -- included, write_once would never dedupe and
+    // the log would fill with near-identical repeats. diag:: prepends timestamps.
     wchar_t title[128]{};
     GetWindowTextW(GetForegroundWindow(), title, ARRAYSIZE(title));
-    wchar_t line[600];
-    wsprintfW(line,
-              L"fg=\"%s\" | display_hdr=%d | status=%s hr=0x%08x "
-              L"white=%d.%02d thr=%d.%02d max=%d.%02d min=-%d.%03d hot=%d.%03d%% | "
-              L"decided=%d want=%s wrote=%d",
-              title, displayHdr ? 1 : 0, (diag.status && *diag.status) ? diag.status : L"-",
-              static_cast<unsigned int>(diag.hr),
-              static_cast<int>(diag.sdrWhite), static_cast<int>(diag.sdrWhite * 100) % 100,
-              static_cast<int>(diag.threshold), static_cast<int>(diag.threshold * 100) % 100,
-              static_cast<int>(diag.maxChannel), static_cast<int>(diag.maxChannel * 100) % 100,
-              static_cast<int>(-diag.minChannel), static_cast<int>(-diag.minChannel * 1000) % 1000,
-              static_cast<int>(diag.hotFraction * 100), static_cast<int>(diag.hotFraction * 100000) % 1000,
-              decided ? 1 : 0, want ? L"HDR" : L"SDR", wrote ? 1 : 0);
-    diag::write(L"%s", line);
+    if (wrote) {
+        wchar_t line[600];
+        wsprintfW(line,
+                  L"fg=\"%s\" | display_hdr=%d | status=%s hr=0x%08x "
+                  L"white=%d.%02d thr=%d.%02d max=%d.%02d min=-%d.%03d hot=%d.%03d%% | "
+                  L"decided=%d want=%s wrote=1",
+                  title, displayHdr ? 1 : 0, (diag.status && *diag.status) ? diag.status : L"-",
+                  static_cast<unsigned int>(diag.hr),
+                  static_cast<int>(diag.sdrWhite), static_cast<int>(diag.sdrWhite * 100) % 100,
+                  static_cast<int>(diag.threshold), static_cast<int>(diag.threshold * 100) % 100,
+                  static_cast<int>(diag.maxChannel), static_cast<int>(diag.maxChannel * 100) % 100,
+                  static_cast<int>(-diag.minChannel), static_cast<int>(-diag.minChannel * 1000) % 1000,
+                  static_cast<int>(diag.hotFraction * 100), static_cast<int>(diag.hotFraction * 100000) % 1000,
+                  decided ? 1 : 0, want ? L"HDR" : L"SDR");
+        diag::write(L"%s", line);
+    } else {
+        diag::write_once(L"fg=\"%s\" | display_hdr=%d | status=%s | decided=%d want=%s | no change",
+                         title, displayHdr ? 1 : 0,
+                         (diag.status && *diag.status) ? diag.status : L"-",
+                         decided ? 1 : 0, want ? L"HDR" : L"SDR");
+    }
     return displayHdr;
 }
 
