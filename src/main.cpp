@@ -67,7 +67,10 @@ void wake() {
 }
 
 // Base executable name (e.g. "notepad.exe") of a window's process, or empty for
-// our own process / on failure. Used to record the last external foreground app.
+// our own process, the shell, or on failure. Used to record the last external
+// foreground app. The shell (explorer.exe -- taskbar, desktop, notification
+// area) is excluded because clicking the tray icon makes it the foreground for an
+// instant; without this the "last app" would always be explorer.exe.
 std::wstring foreground_exe(HWND hwnd) {
     if (!hwnd) {
         return {};
@@ -93,6 +96,9 @@ std::wstring foreground_exe(HWND hwnd) {
         if (*p == L'\\' || *p == L'/') {
             base = p + 1;
         }
+    }
+    if (lstrcmpiW(base, L"explorer.exe") == 0) {
+        return {};  // the shell; see the comment above
     }
     return base;
 }
