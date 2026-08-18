@@ -26,7 +26,11 @@ constexpr float kAboveSdrWhite = 1.10f;       // 10% brighter than SDR white
 constexpr double kHdrPixelFraction = 0.0002;  // 0.02% of sampled pixels
 constexpr float kDefaultSdrWhiteScrgb = 2.5f;  // 200 nits / 80 (scRGB 1.0 = 80 nits)
 constexpr float kBlackFrameMax = 0.01f;        // below this the frame is all black
-constexpr float kGamutFloor = -0.02f;          // channel below this is outside sRGB (WCG/HDR)
+constexpr float kGamutFloor = -0.01f;          // channel below this is outside sRGB (WCG/HDR).
+                                               // SDR content never has a negative scRGB channel,
+                                               // so lowering the margin only adds real wide-gamut
+                                               // pixels (e.g. HDR video in a browser) -- it cannot
+                                               // make SDR content read as HDR.
 constexpr int kSdrDecayScans = 3;              // sustained SDR scans before a window's HDR memory fades
 constexpr UINT kMaxSamplesPerAxis = 512;       // cap the scan cost on large windows
 constexpr size_t kWindowTableSize = 16;        // per-window HDR memory (LRU)
