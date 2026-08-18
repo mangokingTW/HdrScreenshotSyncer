@@ -7,6 +7,25 @@ release note reads as a finished, formatted note rather than a raw changelog.
 Keep each section to what changed; the boilerplate is added automatically. If a
 tag has no section here, the workflow falls back to auto-generated notes.
 
+## v1.1.0
+
+Three features brought over from the sibling IME tool:
+
+- The diagnostic log is now always on, size-capped at 1 MB (it rotates), and kept
+  at `%LocalAppData%\HdrScreenshotSyncer\log.txt`; the tray menu's **Open
+  diagnostic log** opens it directly. It records each SDR/HDR switch and each
+  distinct decision, so an odd result can be diagnosed after the fact.
+- App overrides gained a **Use last app** button that fills in the program you
+  were just in, so you don't have to type or browse for it.
+- A new **Correction state** tray submenu forces the corrector to HDR or SDR, or
+  leaves it on Automatic (the default).
+
+繁體中文:從姊妹工具 IME 帶過來的三項功能:
+
+- 診斷記錄改為永遠開啟、上限 1 MB(會自動輪替),存於 `%LocalAppData%\HdrScreenshotSyncer\log.txt`;托盤選單「**開啟診斷記錄**」可直接開檔。它會記錄每次 SDR/HDR 切換與每個不同的判斷,事後能追查異常。
+- App 覆寫新增「**用剛才的程式**」按鈕,一鍵填入你剛才所在的程式,不必手打或瀏覽。
+- 托盤新增「**校正狀態**」子選單,可強制校正器為 HDR 或 SDR,或維持自動(預設)。
+
 ## v1.0.1
 
 The tray right-click menu now shows the app name and version at the top, so you
