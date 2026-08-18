@@ -27,6 +27,8 @@ add_executable(HdrScreenshotSyncer WIN32
     src/snip_setting.h
     src/autostart.cpp
     src/autostart.h
+    src/diagnostic.cpp
+    src/diagnostic.h
     src/overrides_dialog.cpp
     src/overrides_dialog.h
     src/strings.cpp

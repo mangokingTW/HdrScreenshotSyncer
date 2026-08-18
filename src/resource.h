@@ -15,3 +15,4 @@
 #define IDC_OVR_ADD 208
 #define IDC_OVR_REMOVE 209
 #define IDC_OVR_TIP 210
+#define IDC_OVR_USELAST 211
