@@ -218,6 +218,15 @@ jobs:
       - name: Set up Microsoft Store CLI
         if: env.HAVE_STORE == 'true'
         uses: microsoft/microsoft-store-apppublisher@15abd1c50fcc164b19cb240fb04ef3c49bf715a2 # v1.1
+        with:
+          # Pin the CLI: unpinned installs the latest, and msstore-cli v0.4.0
+          # (2026-08-18) regressed package upload -- it hangs at "Uploading
+          # Bundle to Azure blob: 67%" then fails with "Error while uploading
+          # the application package" (microsoft/msstore-cli#154). v0.3.9 is the
+          # last good release. This bit IME v1.3.0's Store submission; pinning
+          # here so HDR's next stable release does not hit it. Revisit when a
+          # fixed v0.4.x lands.
+          version: v0.3.9
 
       - name: Submit MSIX to the Microsoft Store
         if: env.HAVE_STORE == 'true'
