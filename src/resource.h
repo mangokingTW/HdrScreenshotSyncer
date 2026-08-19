@@ -1,8 +1,10 @@
 #pragma once
 
 #define IDI_APPICON 101
-// Tray artwork for when no display is in HDR; IDI_APPICON is used when one is.
-#define IDI_APPICON_SDR 102
+// Tray state icons: green "HDR" when the corrector is on, grey "SDR" when off.
+// The window, installer and Store keep IDI_APPICON (the plain brand mark).
+#define IDI_TRAY_HDR 102
+#define IDI_TRAY_SDR 103
 
 // App-overrides dialog. Control text is set at runtime from the strings table
 // (English / Traditional Chinese), so the template below carries only layout.

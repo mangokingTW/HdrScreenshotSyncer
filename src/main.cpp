@@ -111,7 +111,7 @@ std::wstring foreground_exe(HWND hwnd) {
 // nothing to destroy and reloading on each swap is cheap.
 HICON tray_icon_for(bool hdrOn) {
     return LoadIconW(GetModuleHandleW(nullptr),
-                     MAKEINTRESOURCEW(hdrOn ? IDI_APPICON : IDI_APPICON_SDR));
+                     MAKEINTRESOURCEW(hdrOn ? IDI_TRAY_HDR : IDI_TRAY_SDR));
 }
 
 // Swap the tray icon to match the corrector's HDR mode: the "HDR" artwork when
