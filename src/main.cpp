@@ -18,8 +18,8 @@
 namespace {
 
 constexpr UINT WMAPP_TRAY = WM_APP + 1;
-// Posted by the worker with wParam = 1 (a display is in HDR) or 0 (none), so the
-// UI thread -- which owns the notification icon -- swaps the tray artwork.
+// Posted by the worker with wParam = 1 (corrector in HDR mode) or 0 (SDR), so
+// the UI thread -- which owns the notification icon -- swaps the tray artwork.
 constexpr UINT WMAPP_UPDATE_ICON = WM_APP + 2;
 constexpr UINT ID_ENABLED = 1001;
 constexpr UINT ID_SYNC_NOW = 1002;
@@ -114,9 +114,9 @@ HICON tray_icon_for(bool hdrOn) {
                      MAKEINTRESOURCEW(hdrOn ? IDI_APPICON : IDI_APPICON_SDR));
 }
 
-// Swap the tray icon to match the display's HDR state: the "HDR" artwork when a
-// display is in HDR, the "SDR" artwork when none is. UI-thread only (it owns the
-// notification icon); no-ops when the icon already matches.
+// Swap the tray icon to match the corrector's HDR mode: the "HDR" artwork when
+// the Snipping Tool corrector is on (HDR), the "SDR" artwork when it is off.
+// UI-thread only (it owns the notification icon); no-ops when already matching.
 void apply_tray_icon(bool hdrOn) {
     if (g_trayHdrState == (hdrOn ? 1 : 0)) {
         return;
@@ -137,9 +137,9 @@ void set_tray_icon(bool add) {
     if (add) {
         g_tray.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         g_tray.uCallbackMessage = WMAPP_TRAY;
-        // Initial artwork reflects the current HDR state; the worker keeps it in
-        // sync afterwards via WMAPP_UPDATE_ICON.
-        g_trayHdrState = hdr::any_display_on() ? 1 : 0;
+        // Initial artwork reflects the corrector's current mode; the worker keeps
+        // it in sync afterwards via WMAPP_UPDATE_ICON.
+        g_trayHdrState = snip::read().value_or(false) ? 1 : 0;
         g_tray.hIcon = tray_icon_for(g_trayHdrState == 1);
         if (!lstrcpynW(g_tray.szTip, text::s().trayTip, ARRAYSIZE(g_tray.szTip))) {
             g_tray.szTip[0] = L'\0';
@@ -166,12 +166,6 @@ bool evaluate_and_apply() {
     const int force = g_force.load();
     const bool displayHdr = hdr::any_display_on();
 
-    // Mirror the display's HDR state in the tray icon (HDR vs SDR artwork).
-    // Posted to the UI thread, which owns the icon and applies it only when it
-    // actually changed. Independent of the force override, which controls the
-    // Snipping Tool corrector, not what the display is doing.
-    PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, displayHdr ? 1 : 0, 0);
-
     // Manual override: apply the forced state and skip detection entirely. Still
     // reports whether a display is in HDR so the worker paces itself the same way.
     if (force != 0) {
@@ -190,6 +184,9 @@ bool evaluate_and_apply() {
             diag::write_once(L"forced=%s | display_hdr=%d | steady", want ? L"HDR" : L"SDR",
                              displayHdr ? 1 : 0);
         }
+        // Tray icon shows the corrector's mode; under a force override that is
+        // the forced state.
+        PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, want ? 1 : 0, 0);
         return displayHdr;
     }
 
@@ -213,6 +210,16 @@ bool evaluate_and_apply() {
             snip::write(want);
             wrote = true;
         }
+    }
+
+    // Tray icon mirrors the corrector's HDR mode: `want` when we decided it this
+    // cycle, otherwise the value already in place (content was unreadable, so the
+    // corrector was left as-is). Posted to the UI thread, which swaps the artwork
+    // only when it actually changed.
+    const std::optional<bool> correctorHdr =
+        decided ? std::optional<bool>(want) : snip::read();
+    if (correctorHdr.has_value()) {
+        PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, correctorHdr.value() ? 1 : 0, 0);
     }
 
     // Event-driven logging, like the IME tool: a real transition is logged in
