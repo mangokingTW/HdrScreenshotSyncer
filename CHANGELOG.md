@@ -7,6 +7,15 @@ release note reads as a finished, formatted note rather than a raw changelog.
 Keep each section to what changed; the boilerplate is added automatically. If a
 tag has no section here, the workflow falls back to auto-generated notes.
 
+## v1.1.1
+
+The tray icon now shows the HDR corrector's current mode at a glance: an **HDR**
+mark when Snipping Tool's HDR screenshot corrector is on, and an **SDR** mark
+when it is off. It updates as the corrector is switched — automatically or via
+the Correction state menu.
+
+繁體中文:托盤圖示現在一眼就能看出校正器目前的模式:剪取工具的 HDR 螢幕擷取校正器開啟時顯示 **HDR** 圖案,關閉時顯示 **SDR** 圖案,並會隨校正器切換(自動或用「校正狀態」選單)即時更新。
+
 ## v1.1.0
 
 Three features brought over from the sibling IME tool:

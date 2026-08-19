@@ -5,6 +5,12 @@
 // The icon id (101) matches IDI_APPICON in resource.h.
 101 ICON "@CMAKE_CURRENT_SOURCE_DIR@/assets/HdrScreenshotSyncer.ico"
 
+// Tray state icons (102 HDR / 103 SDR): green "HDR" when the corrector is on,
+// grey "SDR" when off. Swapped by apply_tray_icon (see main.cpp); the window,
+// installer and Store keep IDI_APPICON above.
+102 ICON "@CMAKE_CURRENT_SOURCE_DIR@/assets/tray-hdr.ico"
+103 ICON "@CMAKE_CURRENT_SOURCE_DIR@/assets/tray-sdr.ico"
+
 // App-overrides dialog. Control captions are filled at runtime from the strings
 // table, so only IDCANCEL (the close button) carries placeholder text here.
 IDD_OVERRIDES DIALOGEX 0, 0, 268, 228

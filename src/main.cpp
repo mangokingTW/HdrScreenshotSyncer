@@ -18,6 +18,9 @@
 namespace {
 
 constexpr UINT WMAPP_TRAY = WM_APP + 1;
+// Posted by the worker with wParam = 1 (corrector in HDR mode) or 0 (SDR), so
+// the UI thread -- which owns the notification icon -- swaps the tray artwork.
+constexpr UINT WMAPP_UPDATE_ICON = WM_APP + 2;
 constexpr UINT ID_ENABLED = 1001;
 constexpr UINT ID_SYNC_NOW = 1002;
 constexpr UINT ID_AUTOSTART = 1003;
@@ -43,6 +46,7 @@ constexpr wchar_t kSingleInstanceMutex[] = L"Local\\HdrScreenshotSyncer.SingleIn
 HWND g_hwnd{};
 HINSTANCE g_instance{};
 NOTIFYICONDATAW g_tray{};
+int g_trayHdrState = -1;      // tray artwork shown: -1 unknown, 0 SDR, 1 HDR (UI thread only)
 std::atomic<bool> g_enabled{true};
 // Correction-state override: 0 = automatic detection, 1 = force HDR (corrector
 // on), 2 = force SDR (corrector off).
@@ -103,6 +107,29 @@ std::wstring foreground_exe(HWND hwnd) {
     return base;
 }
 
+// Resource icons from LoadIcon are shared/cached by the system, so there is
+// nothing to destroy and reloading on each swap is cheap.
+HICON tray_icon_for(bool hdrOn) {
+    return LoadIconW(GetModuleHandleW(nullptr),
+                     MAKEINTRESOURCEW(hdrOn ? IDI_TRAY_HDR : IDI_TRAY_SDR));
+}
+
+// Swap the tray icon to match the corrector's HDR mode: the "HDR" artwork when
+// the Snipping Tool corrector is on (HDR), the "SDR" artwork when it is off.
+// UI-thread only (it owns the notification icon); no-ops when already matching.
+void apply_tray_icon(bool hdrOn) {
+    if (g_trayHdrState == (hdrOn ? 1 : 0)) {
+        return;
+    }
+    g_trayHdrState = hdrOn ? 1 : 0;
+    g_tray.cbSize = sizeof(g_tray);
+    g_tray.hWnd = g_hwnd;
+    g_tray.uID = 1;
+    g_tray.uFlags = NIF_ICON;
+    g_tray.hIcon = tray_icon_for(hdrOn);
+    Shell_NotifyIconW(NIM_MODIFY, &g_tray);
+}
+
 void set_tray_icon(bool add) {
     g_tray.cbSize = sizeof(g_tray);
     g_tray.hWnd = g_hwnd;
@@ -110,7 +137,10 @@ void set_tray_icon(bool add) {
     if (add) {
         g_tray.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         g_tray.uCallbackMessage = WMAPP_TRAY;
-        g_tray.hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APPICON));
+        // Initial artwork reflects the corrector's current mode; the worker keeps
+        // it in sync afterwards via WMAPP_UPDATE_ICON.
+        g_trayHdrState = snip::read().value_or(false) ? 1 : 0;
+        g_tray.hIcon = tray_icon_for(g_trayHdrState == 1);
         if (!lstrcpynW(g_tray.szTip, text::s().trayTip, ARRAYSIZE(g_tray.szTip))) {
             g_tray.szTip[0] = L'\0';
         }
@@ -143,8 +173,12 @@ bool evaluate_and_apply() {
         bool wrote = false;
         const std::optional<bool> current = snip::read();
         if (!current.has_value() || current.value() != want) {
-            snip::write(want);
             wrote = true;
+            // The tray icon tracks only our own changes to the corrector, so
+            // update it when (and only when) our write actually lands.
+            if (snip::write(want)) {
+                PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, want ? 1 : 0, 0);
+            }
         }
         if (wrote) {
             diag::write(L"forced=%s | display_hdr=%d | wrote=1", want ? L"HDR" : L"SDR",
@@ -174,8 +208,12 @@ bool evaluate_and_apply() {
     if (decided) {
         const std::optional<bool> current = snip::read();
         if (!current.has_value() || current.value() != want) {
-            snip::write(want);
             wrote = true;
+            // The tray icon tracks only our own changes to the corrector, so
+            // update it when (and only when) our write actually lands.
+            if (snip::write(want)) {
+                PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, want ? 1 : 0, 0);
+            }
         }
     }
 
@@ -253,6 +291,10 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_DISPLAYCHANGE:
         wake();
+        return 0;
+
+    case WMAPP_UPDATE_ICON:
+        apply_tray_icon(wParam != 0);
         return 0;
 
     case WMAPP_TRAY:
