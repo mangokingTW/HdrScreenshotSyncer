@@ -173,8 +173,12 @@ bool evaluate_and_apply() {
         bool wrote = false;
         const std::optional<bool> current = snip::read();
         if (!current.has_value() || current.value() != want) {
-            snip::write(want);
             wrote = true;
+            // The tray icon tracks only our own changes to the corrector, so
+            // update it when (and only when) our write actually lands.
+            if (snip::write(want)) {
+                PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, want ? 1 : 0, 0);
+            }
         }
         if (wrote) {
             diag::write(L"forced=%s | display_hdr=%d | wrote=1", want ? L"HDR" : L"SDR",
@@ -184,9 +188,6 @@ bool evaluate_and_apply() {
             diag::write_once(L"forced=%s | display_hdr=%d | steady", want ? L"HDR" : L"SDR",
                              displayHdr ? 1 : 0);
         }
-        // Tray icon shows the corrector's mode; under a force override that is
-        // the forced state.
-        PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, want ? 1 : 0, 0);
         return displayHdr;
     }
 
@@ -207,19 +208,13 @@ bool evaluate_and_apply() {
     if (decided) {
         const std::optional<bool> current = snip::read();
         if (!current.has_value() || current.value() != want) {
-            snip::write(want);
             wrote = true;
+            // The tray icon tracks only our own changes to the corrector, so
+            // update it when (and only when) our write actually lands.
+            if (snip::write(want)) {
+                PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, want ? 1 : 0, 0);
+            }
         }
-    }
-
-    // Tray icon mirrors the corrector's HDR mode: `want` when we decided it this
-    // cycle, otherwise the value already in place (content was unreadable, so the
-    // corrector was left as-is). Posted to the UI thread, which swaps the artwork
-    // only when it actually changed.
-    const std::optional<bool> correctorHdr =
-        decided ? std::optional<bool>(want) : snip::read();
-    if (correctorHdr.has_value()) {
-        PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, correctorHdr.value() ? 1 : 0, 0);
     }
 
     // Event-driven logging, like the IME tool: a real transition is logged in
