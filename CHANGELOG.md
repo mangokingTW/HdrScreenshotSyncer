@@ -7,6 +7,14 @@ release note reads as a finished, formatted note rather than a raw changelog.
 Keep each section to what changed; the boilerplate is added automatically. If a
 tag has no section here, the workflow falls back to auto-generated notes.
 
+## v1.1.1
+
+The tray icon now reflects your display's HDR state at a glance: it shows an
+**HDR** mark when any display has HDR (advanced color) turned on, and an **SDR**
+mark when none does. It switches automatically when you toggle Windows HDR.
+
+繁體中文:托盤圖示現在一眼就能看出螢幕目前的 HDR 狀態:有任一顯示器開啟 HDR(進階色彩)時顯示 **HDR** 圖案,都沒開時顯示 **SDR** 圖案,切換 Windows HDR 時會自動更換。
+
 ## v1.1.0
 
 Three features brought over from the sibling IME tool:
