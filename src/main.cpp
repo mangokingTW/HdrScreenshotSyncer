@@ -18,6 +18,9 @@
 namespace {
 
 constexpr UINT WMAPP_TRAY = WM_APP + 1;
+// Posted by the worker with wParam = 1 (a display is in HDR) or 0 (none), so the
+// UI thread -- which owns the notification icon -- swaps the tray artwork.
+constexpr UINT WMAPP_UPDATE_ICON = WM_APP + 2;
 constexpr UINT ID_ENABLED = 1001;
 constexpr UINT ID_SYNC_NOW = 1002;
 constexpr UINT ID_AUTOSTART = 1003;
@@ -43,6 +46,7 @@ constexpr wchar_t kSingleInstanceMutex[] = L"Local\\HdrScreenshotSyncer.SingleIn
 HWND g_hwnd{};
 HINSTANCE g_instance{};
 NOTIFYICONDATAW g_tray{};
+int g_trayHdrState = -1;      // tray artwork shown: -1 unknown, 0 SDR, 1 HDR (UI thread only)
 std::atomic<bool> g_enabled{true};
 // Correction-state override: 0 = automatic detection, 1 = force HDR (corrector
 // on), 2 = force SDR (corrector off).
@@ -103,6 +107,29 @@ std::wstring foreground_exe(HWND hwnd) {
     return base;
 }
 
+// Resource icons from LoadIcon are shared/cached by the system, so there is
+// nothing to destroy and reloading on each swap is cheap.
+HICON tray_icon_for(bool hdrOn) {
+    return LoadIconW(GetModuleHandleW(nullptr),
+                     MAKEINTRESOURCEW(hdrOn ? IDI_APPICON : IDI_APPICON_SDR));
+}
+
+// Swap the tray icon to match the display's HDR state: the "HDR" artwork when a
+// display is in HDR, the "SDR" artwork when none is. UI-thread only (it owns the
+// notification icon); no-ops when the icon already matches.
+void apply_tray_icon(bool hdrOn) {
+    if (g_trayHdrState == (hdrOn ? 1 : 0)) {
+        return;
+    }
+    g_trayHdrState = hdrOn ? 1 : 0;
+    g_tray.cbSize = sizeof(g_tray);
+    g_tray.hWnd = g_hwnd;
+    g_tray.uID = 1;
+    g_tray.uFlags = NIF_ICON;
+    g_tray.hIcon = tray_icon_for(hdrOn);
+    Shell_NotifyIconW(NIM_MODIFY, &g_tray);
+}
+
 void set_tray_icon(bool add) {
     g_tray.cbSize = sizeof(g_tray);
     g_tray.hWnd = g_hwnd;
@@ -110,7 +137,10 @@ void set_tray_icon(bool add) {
     if (add) {
         g_tray.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
         g_tray.uCallbackMessage = WMAPP_TRAY;
-        g_tray.hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APPICON));
+        // Initial artwork reflects the current HDR state; the worker keeps it in
+        // sync afterwards via WMAPP_UPDATE_ICON.
+        g_trayHdrState = hdr::any_display_on() ? 1 : 0;
+        g_tray.hIcon = tray_icon_for(g_trayHdrState == 1);
         if (!lstrcpynW(g_tray.szTip, text::s().trayTip, ARRAYSIZE(g_tray.szTip))) {
             g_tray.szTip[0] = L'\0';
         }
@@ -135,6 +165,12 @@ void set_tray_icon(bool add) {
 bool evaluate_and_apply() {
     const int force = g_force.load();
     const bool displayHdr = hdr::any_display_on();
+
+    // Mirror the display's HDR state in the tray icon (HDR vs SDR artwork).
+    // Posted to the UI thread, which owns the icon and applies it only when it
+    // actually changed. Independent of the force override, which controls the
+    // Snipping Tool corrector, not what the display is doing.
+    PostMessageW(g_hwnd, WMAPP_UPDATE_ICON, displayHdr ? 1 : 0, 0);
 
     // Manual override: apply the forced state and skip detection entirely. Still
     // reports whether a display is in HDR so the worker paces itself the same way.
@@ -253,6 +289,10 @@ LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_DISPLAYCHANGE:
         wake();
+        return 0;
+
+    case WMAPP_UPDATE_ICON:
+        apply_tray_icon(wParam != 0);
         return 0;
 
     case WMAPP_TRAY:

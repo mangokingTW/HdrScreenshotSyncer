@@ -5,6 +5,10 @@
 // The icon id (101) matches IDI_APPICON in resource.h.
 101 ICON "@CMAKE_CURRENT_SOURCE_DIR@/assets/HdrScreenshotSyncer.ico"
 
+// The SDR icon id (102) matches IDI_APPICON_SDR; shown in the tray when no
+// display is in HDR (see apply_tray_icon / WMAPP_UPDATE_ICON in main.cpp).
+102 ICON "@CMAKE_CURRENT_SOURCE_DIR@/assets/HdrScreenshotSyncer_sdr.ico"
+
 // App-overrides dialog. Control captions are filled at runtime from the strings
 // table, so only IDCANCEL (the close button) carries placeholder text here.
 IDD_OVERRIDES DIALOGEX 0, 0, 268, 228
